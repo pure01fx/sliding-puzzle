@@ -1,9 +1,11 @@
 mod logic;
+mod ui;
 
 use std::collections::HashMap;
 
 use logic::{solve_from_initial, Heuristic, Puzzle, SearchTree, SolutionMap};
 use raylib::{prelude::*, rgui::RaylibDrawGui, rstr};
+use ui::{elements::draw_puzzle, interactive_input::SetGoal};
 
 trait MapSearchTree {
     fn new(goal: &Puzzle, initial: &Puzzle) -> Self;
@@ -97,96 +99,32 @@ impl Heuristic for BfsHeuristic {
     }
 }
 
-struct SetGoal {
-    current: u8,
-    content: [u8; 9],
-}
+const SET_GOAL_BUTTON: Rectangle = Rectangle {
+    x: 350.0,
+    y: 50.0,
+    width: 100.0,
+    height: 24.0,
+};
 
-impl SetGoal {
-    pub fn new() -> Self {
-        SetGoal {
-            current: 0,
-            content: [9; 9], // 9 represents empty
-        }
-    }
+const SOLVE_BUTTON: Rectangle = Rectangle {
+    x: 350.0,
+    y: 80.0,
+    width: 100.0,
+    height: 24.0,
+};
 
-    pub fn draw(&self, draw_handle: &mut RaylibDrawHandle, x: i32, y: i32) {
-        for i in 0..3 {
-            for j in 0..3 {
-                if i * 3 + j == self.current as usize {
-                    draw_handle.draw_rectangle_lines(
-                        x + j as i32 * 30,
-                        y + i as i32 * 30,
-                        25,
-                        25,
-                        raylib::color::Color::RED,
-                    );
-                } else {
-                    let content = self.content[i * 3 + j];
-                    if content > 0 && content < 9 {
-                        draw_sq_box(
-                            draw_handle,
-                            x + j as i32 * 30,
-                            y + i as i32 * 30,
-                            &format!("{}", content),
-                        );
-                    }
-                }
-            }
-        }
-    }
-
-    fn set_value(&mut self, value: u8) -> bool {
-        for i in 0..9 {
-            if self.content[i] == value {
-                return false;
-            }
-        }
-        self.content[self.current as usize] = value;
-        self.current = self.current + 1;
-        true
-    }
-
-    pub fn read_event(&mut self, r: &RaylibHandle) {
-        if r.is_key_pressed(raylib::consts::KeyboardKey::KEY_ZERO) {
-            self.set_value(0);
-        } else if r.is_key_pressed(raylib::consts::KeyboardKey::KEY_ONE) {
-            self.set_value(1);
-        } else if r.is_key_pressed(raylib::consts::KeyboardKey::KEY_TWO) {
-            self.set_value(2);
-        } else if r.is_key_pressed(raylib::consts::KeyboardKey::KEY_THREE) {
-            self.set_value(3);
-        } else if r.is_key_pressed(raylib::consts::KeyboardKey::KEY_FOUR) {
-            self.set_value(4);
-        } else if r.is_key_pressed(raylib::consts::KeyboardKey::KEY_FIVE) {
-            self.set_value(5);
-        } else if r.is_key_pressed(raylib::consts::KeyboardKey::KEY_SIX) {
-            self.set_value(6);
-        } else if r.is_key_pressed(raylib::consts::KeyboardKey::KEY_SEVEN) {
-            self.set_value(7);
-        } else if r.is_key_pressed(raylib::consts::KeyboardKey::KEY_EIGHT) {
-            self.set_value(8);
-        }
-    }
-
-    pub fn get_puzzle(&self) -> Option<Puzzle> {
-        if self.content.iter().all(|&x| x != 9) {
-            Some(Puzzle::new([
-                [self.content[0], self.content[1], self.content[2]],
-                [self.content[3], self.content[4], self.content[5]],
-                [self.content[6], self.content[7], self.content[8]],
-            ]))
-        } else {
-            None
-        }
-    }
-}
+const RANDOM_INIT_BUTTON: Rectangle = Rectangle {
+    x: 350.0,
+    y: 110.0,
+    width: 100.0,
+    height: 24.0,
+};
 
 fn main() {
     let (mut handle, thread) = raylib::init().size(1024, 768).build();
     let mut goal = Puzzle::new([[1, 2, 3], [8, 0, 4], [7, 6, 5]]);
     let mut initial = Puzzle::from_random();
-    let mut setting_goal = None;
+    let mut setting_goal: Option<SetGoal> = None;
 
     let mut show_result = false;
     let mut has_solution = false;
@@ -194,34 +132,28 @@ fn main() {
     handle.gui_enable();
 
     while !handle.window_should_close() {
-        let mut draw_handle = handle.begin_drawing(&thread);
-        draw_handle.clear_background(raylib::color::Color::RAYWHITE);
-        draw_puzzle(&mut draw_handle, &initial, 200, 50);
+        let request_solve = {
+            let mut draw_handle = handle.begin_drawing(&thread);
+            draw_handle.clear_background(raylib::color::Color::RAYWHITE);
+            draw_puzzle(&mut draw_handle, &initial, 200, 50);
 
-        // interactive buttons
+            // show result
+            if show_result {
+                result_draw(has_solution, &mut draw_handle);
+            }
 
-        if draw_handle.gui_button(
-            Rectangle {
-                x: 350.0,
-                y: 50.0,
-                width: 100.0,
-                height: 24.0,
-            },
-            Some(rstr!("Set goal")),
-        ) {
-            setting_goal = Some(SetGoal::new());
-            show_result = false;
-        }
+            // interactive buttons
+            button_draw(
+                &mut setting_goal,
+                draw_handle,
+                &mut goal,
+                &mut initial,
+                &mut show_result,
+                &mut has_solution,
+            )
+        };
 
-        if draw_handle.gui_button(
-            Rectangle {
-                x: 350.0,
-                y: 110.0,
-                width: 100.0,
-                height: 24.0,
-            },
-            Some(rstr!("Solve")),
-        ) {
+        if request_solve {
             if let Some(s) = solve(initial, goal) {
                 print_map_search_tree(&s);
                 has_solution = true;
@@ -231,40 +163,47 @@ fn main() {
 
             show_result = true;
         }
+    }
+}
 
-        if let Some(set_goal) = &mut setting_goal {
-            set_goal.read_event(&draw_handle);
-            set_goal.draw(&mut draw_handle, 50, 50);
+fn button_draw(
+    setting_goal: &mut Option<SetGoal>,
+    mut draw_handle: RaylibDrawHandle<'_>,
+    goal: &mut Puzzle,
+    initial: &mut Puzzle,
+    show_result: &mut bool,
+    has_solution: &mut bool,
+) -> bool {
+    if let Some(set_goal) = setting_goal {
+        set_goal.read_event(&draw_handle);
+        set_goal.draw(&mut draw_handle, 50, 50);
 
-            if let Some(puzzle) = set_goal.get_puzzle() {
-                goal = puzzle;
-                setting_goal = None;
-            }
-        } else {
-            draw_puzzle(&mut draw_handle, &goal, 50, 50);
+        if let Some(puzzle) = set_goal.get_puzzle() {
+            *goal = puzzle;
+            *setting_goal = None;
         }
+    } else {
+        draw_puzzle(&mut draw_handle, &*goal, 50, 50);
+    }
 
-        if draw_handle.gui_button(
-            Rectangle {
-                x: 350.0,
-                y: 80.0,
-                width: 100.0,
-                height: 24.0,
-            },
-            Some(rstr!("Random init")),
-        ) {
-            initial = Puzzle::from_random();
-            show_result = false;
-        }
+    if draw_handle.gui_button(RANDOM_INIT_BUTTON, Some(rstr!("Random init"))) {
+        *initial = Puzzle::from_random();
+        *show_result = false;
+    }
 
-        // show result
-        if show_result {
-            if has_solution {
-                draw_handle.draw_text("Solution found", 500, 50, 20, raylib::color::Color::GREEN);
-            } else {
-                draw_handle.draw_text("No solution found", 500, 50, 20, raylib::color::Color::RED);
-            }
-        }
+    if draw_handle.gui_button(SET_GOAL_BUTTON, Some(rstr!("Set goal"))) {
+        *setting_goal = Some(SetGoal::new());
+        *show_result = false;
+    }
+
+    setting_goal.is_none() && draw_handle.gui_button(SOLVE_BUTTON, Some(rstr!("Solve")))
+}
+
+fn result_draw(has_solution: bool, draw_handle: &mut RaylibDrawHandle<'_>) {
+    if has_solution {
+        draw_handle.draw_text("Solution found", 500, 50, 20, raylib::color::Color::GREEN);
+    } else {
+        draw_handle.draw_text("No solution found", 500, 50, 20, raylib::color::Color::RED);
     }
 }
 
@@ -294,26 +233,4 @@ fn solve(initial: Puzzle, goal: Puzzle) -> Option<NativeSearchTree> {
     print_map_search_tree(&s);
 
     Some(s)
-}
-
-fn draw_sq_box(draw_handle: &mut RaylibDrawHandle, x: i32, y: i32, number: &str) {
-    draw_handle.draw_rectangle(x, y, 25, 25, raylib::color::Color::BLACK);
-    draw_handle.draw_text(
-        number,
-        x + 7 + (if number == "1" { 3 } else { 0 }),
-        y + 4,
-        20,
-        raylib::color::Color::WHITE,
-    );
-}
-
-fn draw_puzzle(draw_handle: &mut RaylibDrawHandle, puzzle: &Puzzle, x: i32, y: i32) {
-    for i in 0..3 {
-        for j in 0..3 {
-            let s = format!("{}", puzzle.get_value(i, j));
-            if s != "0" {
-                draw_sq_box(draw_handle, x + j as i32 * 30, y + i as i32 * 30, &s);
-            }
-        }
-    }
 }
