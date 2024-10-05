@@ -1,29 +1,70 @@
 mod logic;
 mod ui;
 
-use std::{
-    cell::RefCell,
-    collections::{HashMap, VecDeque},
-    ops::{Deref, DerefMut},
-    rc::Rc,
-};
+use std::{cell::RefCell, collections::HashMap, iter::Map, ops::{Deref, DerefMut}, rc::Rc};
 
-use logic::{solve_from_initial, Direction, Heuristic, Puzzle, SearchTree, SolutionMap};
+use logic::{solve_from_initial, Heuristic, Puzzle, SearchTree, SolutionMap};
 use raylib::{prelude::*, rgui::RaylibDrawGui, rstr};
 use ui::{
     elements::{draw_puzzle, draw_small_puzzle, SmallPuzzleCenter},
     interactive_input::SetPuzzle,
 };
 
-trait MapSearchTree {
-    fn new(goal: &Puzzle, initial: &Puzzle) -> Self;
-    fn initial(&self) -> &Puzzle;
+trait AsMapSearchTree {
     fn goal(&self) -> &Puzzle;
+    fn initial(&self) -> &Puzzle;
     fn map(&self) -> &HashMap<Puzzle, (Puzzle, i32)>;
     fn map_mut(&mut self) -> &mut HashMap<Puzzle, (Puzzle, i32)>;
+
+    fn as_map_search_tree(&mut self) -> MapSearchTree<'_, Self>
+    where
+        Self: Sized,
+    {
+        MapSearchTree { inner: self }
+    }
 }
 
-fn print_map_search_tree(m: &impl MapSearchTree) {
+struct OwnedMapSearchTree<T>
+where
+    T: AsMapSearchTree,
+{
+    inner: T,
+}
+
+impl<T: AsMapSearchTree> OwnedMapSearchTree<T> {
+    pub fn make_ref<'a>(&'a mut self) -> MapSearchTree<'a, T> {
+        MapSearchTree { inner: &mut self.inner }
+    }
+}
+
+struct MapSearchTree<'a, T>
+where
+    T: AsMapSearchTree,
+{
+    inner: &'a mut T,
+}
+
+impl<T: AsMapSearchTree> Deref for MapSearchTree<'_, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        self.inner
+    }
+}
+
+impl<T: AsMapSearchTree> DerefMut for MapSearchTree<'_, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.inner
+    }
+}
+
+impl<T: AsMapSearchTree> MapSearchTree<'_, T> {
+    fn inner(&self) -> &T {
+        self.inner
+    }
+}
+
+fn print_map_search_tree<T: AsMapSearchTree>(m: &MapSearchTree<T>) {
     if m.goal_reached() {
         let mut vec = Vec::new();
         let mut current = m.goal().clone();
@@ -52,14 +93,7 @@ struct NativeSearchTree {
     map: HashMap<Puzzle, (Puzzle, i32)>,
 }
 
-impl MapSearchTree for NativeSearchTree {
-    fn new(goal: &Puzzle, initial: &Puzzle) -> Self {
-        NativeSearchTree {
-            goal: goal.clone(),
-            initial: initial.clone(),
-            map: HashMap::new(),
-        }
-    }
+impl AsMapSearchTree for NativeSearchTree {
     fn goal(&self) -> &Puzzle {
         &self.goal
     }
@@ -74,14 +108,7 @@ impl MapSearchTree for NativeSearchTree {
     }
 }
 
-impl<T> SearchTree for T
-where
-    T: MapSearchTree,
-{
-    fn new(goal: &Puzzle, initial: &Puzzle) -> Self {
-        Self::new(goal, initial)
-    }
-
+impl<T: AsMapSearchTree> SearchTree for MapSearchTree<'_, T> {
     fn goal_reached(&self) -> bool {
         self.map().contains_key(&self.goal())
     }
@@ -239,8 +266,8 @@ impl RcRefDrawTreeNode {
     }
 }
 
-impl<T: MapSearchTree> From<T> for RcRefDrawTreeNode {
-    fn from(tree: T) -> Self {
+impl<T: AsMapSearchTree> From<MapSearchTree<'_, T>> for RcRefDrawTreeNode {
+    fn from(tree: MapSearchTree<T>) -> Self {
         let root_node = DrawTreeNode::new_rc_ref(*tree.initial());
         let mut temp_nodes = HashMap::new();
 
@@ -366,7 +393,8 @@ fn main() {
         };
 
         if request_solve {
-            if let Some(s) = solve(initial, goal) {
+            if let Some(mut s) = solve(initial, goal) {
+                let s = s.as_map_search_tree();
                 print_map_search_tree(&s);
                 solution_tree = Some(s.into());
             } else {
@@ -443,9 +471,17 @@ fn solve(initial: Puzzle, goal: Puzzle) -> Option<NativeSearchTree> {
 
     println!("\n----------------\n");
 
-    let s = solve_from_initial::<NativeSearchTree, BfsHeuristic>(initial, goal);
-    assert!(s.goal_reached());
-    print_map_search_tree(&s);
+    let mut tree = OwnedMapSearchTree {
+        inner: NativeSearchTree {
+            goal,
+            initial,
+            map: HashMap::new(),
+        },
+    };
+    let mut tree_ref = tree.make_ref();
+    solve_from_initial::<_, BfsHeuristic>(initial, goal, &mut tree_ref);
+    assert!(tree_ref.goal_reached());
+    print_map_search_tree(&tree_ref);
 
-    Some(s)
+    Some(tree.inner)
 }

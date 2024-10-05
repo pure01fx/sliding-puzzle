@@ -183,7 +183,6 @@ pub trait Heuristic {
 }
 
 pub trait SearchTree {
-    fn new(goal: &Puzzle, initial: &Puzzle) -> Self;
     fn goal_reached(&self) -> bool;
     fn get(&self, key: &Puzzle) -> Option<(Puzzle, i32)>;
     fn set(&mut self, key: Puzzle, value: (Puzzle, i32));
@@ -217,9 +216,8 @@ impl Ord for BinaryHeapNode {
     }
 }
 
-pub fn solve_from_initial<S: SearchTree, H: Heuristic>(initial: Puzzle, goal: Puzzle) -> S {
+pub fn solve_from_initial<S: SearchTree, H: Heuristic>(initial: Puzzle, goal: Puzzle, closed_set: &mut S) {
     let mut open_set = BinaryHeap::new();
-    let mut closed_set: S = S::new(&goal, &initial);
     let mut h_estimator = H::new();
 
     open_set.push(BinaryHeapNode {
@@ -255,6 +253,4 @@ pub fn solve_from_initial<S: SearchTree, H: Heuristic>(initial: Puzzle, goal: Pu
             }
         }
     }
-
-    closed_set
 }
