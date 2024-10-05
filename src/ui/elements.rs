@@ -37,3 +37,40 @@ pub fn draw_puzzle(draw_handle: &mut RaylibDrawHandle, puzzle: &Puzzle, x: i32, 
         }
     }
 }
+
+pub trait PuzzleCoord {
+    fn get_top_left(&self) -> (i32, i32);
+}
+
+pub struct SmallPuzzleCenter {
+    pub x: i32,
+    pub y: i32,
+}
+
+impl PuzzleCoord for SmallPuzzleCenter {
+    fn get_top_left(&self) -> (i32, i32) {
+        (self.x - 4, self.y - 4)
+    }
+}
+
+pub fn draw_small_puzzle(
+    draw_handle: &mut RaylibDrawHandle,
+    puzzle: &Puzzle,
+    coord: impl PuzzleCoord,
+) {
+    let (x, y) = coord.get_top_left();
+    for i in 0..3 {
+        for j in 0..3 {
+            let value = puzzle.get_value(i, j);
+            if value != 0 {
+                draw_handle.draw_rectangle(
+                    x + j as i32 * 3,
+                    y + i as i32 * 3,
+                    3,
+                    3,
+                    map_color(&value.to_string()),
+                );
+            }
+        }
+    }
+}

@@ -4,14 +4,14 @@ use crate::logic::Puzzle;
 
 use super::elements::draw_sq_box;
 
-pub struct SetGoal {
+pub struct SetPuzzle {
     current: u8,
     content: [u8; 9],
 }
 
-impl SetGoal {
+impl SetPuzzle {
     pub fn new() -> Self {
-        SetGoal {
+        SetPuzzle {
             current: 0,
             content: [9; 9], // 9 represents empty
         }

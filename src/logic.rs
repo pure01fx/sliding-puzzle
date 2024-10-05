@@ -41,7 +41,7 @@ impl Puzzle {
         Puzzle { board }
     }
 
-    fn find_zero(&self) -> Option<(usize, usize)> {
+    pub fn find_zero(&self) -> Option<(usize, usize)> {
         for (i, row) in self.board.iter().enumerate() {
             for (j, &val) in row.iter().enumerate() {
                 if val == 0 {
@@ -52,7 +52,7 @@ impl Puzzle {
         None
     }
 
-    fn move_zero(&self, direction: Direction) -> Option<Puzzle> {
+    pub fn move_zero(&self, direction: Direction) -> Option<Puzzle> {
         if let Some((i, j)) = self.find_zero() {
             let new_board = self.board;
             let (new_i, new_j) = match direction {
@@ -80,7 +80,7 @@ impl Puzzle {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-enum Direction {
+pub enum Direction {
     Up,
     Down,
     Left,
@@ -88,7 +88,7 @@ enum Direction {
 }
 
 impl Direction {
-    const fn all() -> [Direction; 4] {
+    pub const fn all() -> [Direction; 4] {
         [
             Direction::Up,
             Direction::Down,
@@ -97,7 +97,7 @@ impl Direction {
         ]
     }
 
-    const fn reverse(&self) -> Direction {
+    pub const fn reverse(&self) -> Direction {
         match self {
             Direction::Up => Direction::Down,
             Direction::Down => Direction::Up,
