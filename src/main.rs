@@ -1,6 +1,7 @@
 mod draw_tree;
 mod logic;
 mod ui;
+pub mod name;
 
 use std::{
     collections::HashMap,
@@ -10,6 +11,7 @@ use std::{
 
 use draw_tree::{IntRectBound, RcRefDrawTreeNode};
 use logic::{solve_from_initial, AStarHeuristic, BfsHeuristic, Heuristic, Puzzle, SearchTree};
+use name::AUTHOR_NOTE;
 use raylib::{prelude::*, rgui::RaylibDrawGui, rstr};
 use ui::{
     elements::draw_puzzle,
@@ -390,6 +392,8 @@ fn main() {
                     );
                 }
             }
+
+            draw_handle.draw_text(AUTHOR_NOTE, 500, 110, 20, raylib::color::Color::DARKCYAN);
 
             if let Some(set_goal) = &mut setting_goal {
                 set_goal.read_event(&draw_handle);

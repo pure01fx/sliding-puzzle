@@ -1,0 +1,1 @@
+pub const AUTHOR_NOTE: &str = "by: fx Lingyi\n\nHomework for Artifical Intelligence  24.10.06";
