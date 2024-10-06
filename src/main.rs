@@ -1,7 +1,13 @@
 mod logic;
 mod ui;
 
-use std::{cell::RefCell, collections::HashMap, iter::Map, ops::{Deref, DerefMut}, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    iter::Map,
+    ops::{Deref, DerefMut},
+    rc::Rc,
+};
 
 use logic::{solve_from_initial, Heuristic, Puzzle, SearchTree, SolutionMap};
 use raylib::{prelude::*, rgui::RaylibDrawGui, rstr};
@@ -33,7 +39,9 @@ where
 
 impl<T: AsMapSearchTree> OwnedMapSearchTree<T> {
     pub fn make_ref<'a>(&'a mut self) -> MapSearchTree<'a, T> {
-        MapSearchTree { inner: &mut self.inner }
+        MapSearchTree {
+            inner: &mut self.inner,
+        }
     }
 }
 
@@ -129,6 +137,32 @@ struct IntRect {
     pub height: i32,
 }
 
+pub struct IntRectBound {
+    pub left: i32,
+    pub top: i32,
+    pub right: i32,
+    pub bottom: i32,
+}
+
+impl IntRectBound {
+    pub fn is_inside(&self, x: i32, y: i32) -> bool {
+        x >= self.left && x <= self.right && y >= self.top && y <= self.bottom
+    }
+
+    pub fn has_intersection_center_rect(
+        &self,
+        center: (i32, i32),
+        width_x2: i32,
+        height_x2: i32,
+    ) -> bool {
+        let left = center.0 - width_x2;
+        let right = center.0 + width_x2;
+        let top = center.1 - height_x2;
+        let bottom = center.1 + height_x2;
+
+        left <= self.right && right >= self.left && top <= self.bottom && bottom >= self.top
+    }
+}
 struct DrawTreeNode {
     puzzle: Puzzle,
     depth: u32,
@@ -221,28 +255,23 @@ impl RcRefDrawTreeNode {
         }
     }
 
-    fn draw(&self, draw_handle: &mut RaylibDrawHandle, canvas: &IntRect) {
+    fn draw(&self, draw_handle: &mut RaylibDrawHandle, bound: &IntRectBound, offset: (i32, i32)) {
         let inner = self.borrow();
         let center_x = inner.center_x;
         let depth = inner.depth;
 
-        let x = canvas.x + canvas.width / 2 + center_x;
-        let y = canvas.y + depth as i32 * (13 + 9) + 4;
+        let x = offset.0 + center_x;
+        let y = offset.1 + depth as i32 * (13 + 9) + 4;
 
-        if y - canvas.y > canvas.height {
-            return;
+        if bound.has_intersection_center_rect((x, y), 4, 4) {
+            draw_small_puzzle(draw_handle, &inner.puzzle, SmallPuzzleCenter { x, y });
         }
-
-        draw_small_puzzle(draw_handle, &inner.puzzle, SmallPuzzleCenter { x, y });
 
         if !inner.children.is_empty() {
             // draw line down
             draw_handle.draw_rectangle(x, y + 8, 1, 3, raylib::color::Color::BLACK);
-            // draw line across
-            let left_center_x =
-                canvas.x + canvas.width / 2 + inner.children.first().unwrap().borrow().center_x;
-            let right_center_x =
-                canvas.x + canvas.width / 2 + inner.children.last().unwrap().borrow().center_x;
+            let left_center_x = offset.0 + inner.children.first().unwrap().borrow().center_x;
+            let right_center_x = offset.0 + inner.children.last().unwrap().borrow().center_x;
             draw_handle.draw_rectangle(
                 left_center_x,
                 y + 8 + 3,
@@ -254,13 +283,13 @@ impl RcRefDrawTreeNode {
             for child in inner.children.iter() {
                 // draw line down
                 draw_handle.draw_rectangle(
-                    canvas.x + canvas.width / 2 + child.borrow().center_x,
+                    offset.0 + child.borrow().center_x,
                     y + 8 + 4,
                     1,
                     3,
                     raylib::color::Color::BLACK,
                 );
-                child.draw(draw_handle, canvas);
+                child.draw(draw_handle, bound, offset);
             }
         }
     }
@@ -344,7 +373,7 @@ fn main() {
     let mut setting_initial: Option<SetPuzzle> = None;
 
     let mut show_result = false;
-    let mut solution_tree = None;
+    let mut solution_tree: Option<RcRefDrawTreeNode> = None;
 
     let mut offset_xy = (0, 0);
     let mut offset_xy_old = (0, 0);
@@ -353,7 +382,6 @@ fn main() {
     handle.gui_enable();
 
     while !handle.window_should_close() {
-
         if handle.is_mouse_button_down(raylib::consts::MouseButton::MOUSE_BUTTON_LEFT) {
             if let Some(start) = start_pos {
                 offset_xy = (
@@ -370,7 +398,24 @@ fn main() {
 
         let request_solve = {
             let mut draw_handle = handle.begin_drawing(&thread);
-            draw_handle.clear_background(raylib::color::Color::RAYWHITE);
+            draw_handle.clear_background(raylib::color::Color::WHITE);
+
+            if show_result {
+                if let Some(solution) = &solution_tree {
+                    solution.draw(
+                        &mut draw_handle,
+                        &IntRectBound {
+                            left: 0,
+                            top: 200,
+                            right: 1100,
+                            bottom: 800,
+                        },
+                        (500 + offset_xy.0, 220 + offset_xy.1),
+                    );
+                }
+            }
+
+            draw_handle.draw_rectangle(0, 0, 1100, 200, raylib::color::Color::RAYWHITE);
 
             // show result
             if show_result {
@@ -452,18 +497,13 @@ fn button_draw(
         && draw_handle.gui_button(SOLVE_BUTTON, Some(rstr!("Solve")))
 }
 
-fn result_draw(has_solution: &Option<RcRefDrawTreeNode>, draw_handle: &mut RaylibDrawHandle<'_>, offset: (i32, i32)) {
-    if let Some(solution) = has_solution {
+fn result_draw(
+    has_solution: &Option<RcRefDrawTreeNode>,
+    draw_handle: &mut RaylibDrawHandle<'_>,
+    offset: (i32, i32),
+) {
+    if let Some(_) = has_solution {
         draw_handle.draw_text("Solution found", 500, 50, 20, raylib::color::Color::GREEN);
-        solution.draw(
-            draw_handle,
-            &IntRect {
-                x: 50 + offset.0,
-                y: 350 + offset.1,
-                width: 900,
-                height: 400,
-            },
-        );
     } else {
         draw_handle.draw_text("No solution found", 500, 50, 20, raylib::color::Color::RED);
     }
