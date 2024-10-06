@@ -31,7 +31,7 @@ pub struct DrawTreeNode {
     puzzle: Puzzle,
     depth: u32,
     children: Vec<RcRefDrawTreeNode>,
-    center_x: i32,
+    pub center_x: i32,
     min_x: i32,
     max_x: i32,
     draw_x: Cell<i32>,
@@ -67,19 +67,26 @@ impl DrawTreeNode {
 }
 
 impl RcRefDrawTreeNode {
-    fn build_depth(&self, depth: u32, path_end: &Puzzle) -> bool {
-        let on_path = self.borrow().puzzle == *path_end
-            || self
-                .borrow()
-                .children
-                .iter()
-                .map(|child| child.build_depth(depth + 1, path_end))
-                .fold(false, |acc, x| acc || x);
+    fn build_depth(&self, depth: u32, path_end: &Puzzle) -> (bool, Option<Self>) {
+        let xx = self
+            .borrow()
+            .children
+            .iter()
+            .map(|child| child.build_depth(depth + 1, path_end))
+            .fold((false, None), |acc, x| match x {
+                (_, node @ Some(_)) => (true, node),
+                (x, _) => (acc.0 || x, acc.1),
+            });
 
-        self.borrow().on_path.set(on_path);
         self.borrow_mut().depth = depth;
 
-        on_path
+        if self.borrow().puzzle == *path_end {
+            self.borrow_mut().on_path.set(true);
+            (true, Some(self.clone()))
+        } else {
+            self.borrow_mut().on_path.set(xx.0);
+            xx
+        }
     }
 
     fn build_coord(&self) {
@@ -317,7 +324,7 @@ impl RcRefDrawTreeNode {
     pub fn new_from_map_search_tree<T: AsMapSearchTree>(
         tree: &MapSearchTree<'_, T>,
         path_end: &Puzzle,
-    ) -> RcRefDrawTreeNode {
+    ) -> (RcRefDrawTreeNode, Option<RcRefDrawTreeNode>) {
         let root_node = DrawTreeNode::new_rc_ref(*tree.initial());
         let mut temp_nodes = HashMap::new();
 
@@ -339,14 +346,16 @@ impl RcRefDrawTreeNode {
                 .push(puzzle_node.clone());
         }
 
-        root_node.build_depth(0, path_end);
+        let (_, goal_node) = root_node.build_depth(0, path_end);
         root_node.build_coord();
 
-        root_node
+        (root_node, goal_node)
     }
 }
 
-impl<T: AsMapSearchTree> From<MapSearchTree<'_, T>> for RcRefDrawTreeNode {
+impl<T: AsMapSearchTree> From<MapSearchTree<'_, T>>
+    for (RcRefDrawTreeNode, Option<RcRefDrawTreeNode>)
+{
     fn from(tree: MapSearchTree<T>) -> Self {
         RcRefDrawTreeNode::new_from_map_search_tree(&tree, tree.goal())
     }

@@ -12,7 +12,7 @@ use logic::{solve_from_initial, AStarHeuristic, BfsHeuristic, Heuristic, Puzzle,
 use raylib::{prelude::*, rgui::RaylibDrawGui, rstr};
 use ui::{elements::draw_puzzle, interactive_input::SetPuzzle};
 
-trait AsMapSearchTree {
+pub trait AsMapSearchTree {
     fn goal(&self) -> &Puzzle;
     fn initial(&self) -> &Puzzle;
     fn map(&self) -> &HashMap<Puzzle, (Puzzle, i32)>;
@@ -41,7 +41,7 @@ impl<T: AsMapSearchTree> OwnedMapSearchTree<T> {
     }
 }
 
-struct MapSearchTree<'a, T>
+pub struct MapSearchTree<'a, T>
 where
     T: AsMapSearchTree,
 {
@@ -136,21 +136,21 @@ const SET_INITIAL_BUTTON: Rectangle = Rectangle {
 
 const SOLVE_BUTTON: Rectangle = Rectangle {
     x: 350.0,
-    y: 80.0,
+    y: 50.0,
     width: 100.0,
     height: 24.0,
 };
 
 const RANDOM_INIT_BUTTON: Rectangle = Rectangle {
     x: 350.0,
-    y: 110.0,
+    y: 80.0,
     width: 100.0,
     height: 24.0,
 };
 
 const STRATEGY_LIST: Rectangle = Rectangle {
     x: 350.0,
-    y: 140.0,
+    y: 110.0,
     width: 100.0,
     height: 24.0,
 };
@@ -163,7 +163,7 @@ fn main() {
     let mut setting_initial: Option<SetPuzzle> = None;
 
     let mut show_result = false;
-    let mut solution_tree: Option<(RcRefDrawTreeNode, usize)> = None;
+    let mut solution_tree: Option<((RcRefDrawTreeNode, Option<RcRefDrawTreeNode>), usize)> = None;
 
     let mut offset_xy = (0, 0);
     let mut offset_xy_old = (0, 0);
@@ -175,7 +175,9 @@ fn main() {
     let mut strategy_edit = false;
 
     while !handle.window_should_close() {
-        if handle.is_mouse_button_down(raylib::consts::MouseButton::MOUSE_BUTTON_LEFT) {
+        if handle.is_mouse_button_down(raylib::consts::MouseButton::MOUSE_BUTTON_LEFT)
+            && handle.get_mouse_y() > 200
+        {
             if let Some(start) = start_pos {
                 offset_xy = (
                     handle.get_mouse_x() - start.0 + offset_xy_old.0,
@@ -194,7 +196,7 @@ fn main() {
             draw_handle.clear_background(raylib::color::Color::WHITE);
 
             if show_result {
-                if let Some((solution, _)) = &solution_tree {
+                if let Some(((solution, _), _)) = &solution_tree {
                     solution.draw(
                         &mut draw_handle,
                         &IntRectBound {
@@ -286,6 +288,10 @@ fn main() {
                 let s = s.as_map_search_tree();
                 print_map_search_tree(&s);
                 solution_tree = Some((s.into(), count));
+
+                if let Some(((_, Some(goal_node)), _)) = &solution_tree {
+                    offset_xy.0 = -goal_node.borrow().center_x;
+                }
             } else {
                 solution_tree = None;
             }
