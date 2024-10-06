@@ -212,8 +212,8 @@ impl<'a> AsMapSearchTree for AnimatedSearchTree<'a> {
         let (a, b) = RcRefDrawTreeNode::new_from_map_search_tree(&map_search_tree, current);
         a.draw(
             &mut animating.draw_handle,
-            &MAIN_BOUND,
-            (500 - b.map(|x| x.borrow().center_x).unwrap_or(0), 220),
+            &ANIM_BOUND,
+            (500 - b.map(|x| x.borrow().center_x).unwrap_or(0), ANIM_BOUND.top + 20),
         );
     }
 }
@@ -281,6 +281,13 @@ const STRATEGY_LIST: Rectangle = Rectangle {
 const MAIN_BOUND: IntRectBound = IntRectBound {
     left: 0 + 10,
     top: 200,
+    right: 1024 - 10,
+    bottom: 800,
+};
+
+const ANIM_BOUND: IntRectBound = IntRectBound {
+    left: 0 + 10,
+    top: 10,
     right: 1024 - 10,
     bottom: 800,
 };
