@@ -11,7 +11,11 @@ use std::{
 use draw_tree::{IntRectBound, RcRefDrawTreeNode};
 use logic::{solve_from_initial, AStarHeuristic, BfsHeuristic, Heuristic, Puzzle, SearchTree};
 use raylib::{prelude::*, rgui::RaylibDrawGui, rstr};
-use ui::{elements::draw_puzzle, interactive_input::SetPuzzle};
+use ui::{
+    elements::draw_puzzle,
+    gif::{load_alice, ALICE_HEIGHT, ALICE_WIDTH},
+    interactive_input::SetPuzzle,
+};
 
 pub trait AsMapSearchTree {
     fn goal(&self) -> &Puzzle;
@@ -116,6 +120,7 @@ struct AnimatedSearchTree<'handle> {
     handle: &'handle mut RaylibHandle,
     thread: &'handle RaylibThread,
     max_nodes: usize,
+    alice: Vec<Texture2D>,
 }
 
 struct AnimatingSearchTree<'handle: 'draw, 'draw, 'data> {
@@ -124,10 +129,14 @@ struct AnimatingSearchTree<'handle: 'draw, 'draw, 'data> {
     map: &'data HashMap<Puzzle, (Puzzle, i32)>,
     draw_handle: RaylibDrawHandle<'draw>,
     thread: PhantomData<&'handle RaylibThread>,
+    alice: &'data Texture2D,
 }
 
 impl<'handle: 'draw, 'draw, 'data> AnimatingSearchTree<'handle, 'draw, 'data> {
-    fn from_animated_tree<'a: 'draw + 'data>(tree: &'a mut AnimatedSearchTree<'handle>) -> Self {
+    fn from_animated_tree<'a: 'draw + 'data>(
+        tree: &'a mut AnimatedSearchTree<'handle>,
+        alice_id: usize,
+    ) -> Self {
         let AnimatedSearchTree {
             goal,
             initial,
@@ -144,6 +153,7 @@ impl<'handle: 'draw, 'draw, 'data> AnimatingSearchTree<'handle, 'draw, 'data> {
             map,
             draw_handle,
             thread: PhantomData,
+            alice: &tree.alice[alice_id],
         }
     }
 }
@@ -181,7 +191,21 @@ impl<'a> AsMapSearchTree for AnimatedSearchTree<'a> {
         if self.map.len() > self.max_nodes {
             return;
         }
-        let mut animating = AnimatingSearchTree::from_animated_tree(self);
+        // draw alice in loop
+        let total = 1024 + ALICE_WIDTH;
+        let single = total / 50;
+        let left = (single * (self.map.len() as u32 % 50)) as i32 - ALICE_WIDTH as i32;
+        let alice_id = self.map.len() % self.alice.len();
+
+        let mut animating = AnimatingSearchTree::from_animated_tree(self, alice_id);
+
+        animating.draw_handle.draw_texture(
+            animating.alice,
+            left as i32,
+            768 - ALICE_HEIGHT as i32,
+            raylib::color::Color::WHITE,
+        );
+
         let map_search_tree = MapSearchTree {
             inner: &mut animating,
         };
@@ -451,6 +475,7 @@ fn solve<'a, T: Heuristic>(
     thread: &'a RaylibThread,
     max_nodes: usize,
 ) -> Option<AnimatedSearchTree<'a>> {
+    let alice = load_alice(handle, &thread);
     let mut tree = OwnedMapSearchTree {
         inner: AnimatedSearchTree {
             goal,
@@ -459,6 +484,7 @@ fn solve<'a, T: Heuristic>(
             handle,
             thread,
             max_nodes,
+            alice,
         },
     };
     let mut tree_ref: MapSearchTree<'_, AnimatedSearchTree<'_>> = tree.make_ref();

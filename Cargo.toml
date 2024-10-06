@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 rand = "0.8.5"
 raylib = "5.0.2"
+rust-embed = { version = "8.5.0", features = ["debug-embed"] }
