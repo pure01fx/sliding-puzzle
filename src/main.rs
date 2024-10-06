@@ -188,9 +188,9 @@ fn main() {
                     solution.draw(
                         &mut draw_handle,
                         &IntRectBound {
-                            left: 0,
+                            left: 0 + 10,
                             top: 200,
-                            right: 1100,
+                            right: 1024 - 10,
                             bottom: 800,
                         },
                         (500 + offset_xy.0, 220 + offset_xy.1),
