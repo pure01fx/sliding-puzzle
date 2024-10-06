@@ -339,6 +339,9 @@ fn main() {
 
             draw_handle.draw_rectangle(0, 0, 1100, 200, raylib::color::Color::RAYWHITE);
 
+            if animation_edit {
+                draw_handle.gui_lock();
+            }
             if draw_handle.gui_dropdown_box(
                 STRATEGY_LIST,
                 Some(rstr!("BFS;A*")),
@@ -346,6 +349,9 @@ fn main() {
                 strategy_edit,
             ) {
                 strategy_edit = !strategy_edit;
+            }
+            if animation_edit {
+                draw_handle.gui_unlock();
             }
 
             if draw_handle.gui_dropdown_box(
