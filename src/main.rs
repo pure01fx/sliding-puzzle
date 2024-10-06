@@ -239,11 +239,11 @@ const RANDOM_INIT_BUTTON: Rectangle = Rectangle {
     height: 24.0,
 };
 
-const ANIMATE_CHECKBOX: Rectangle = Rectangle {
+const FPS_LIST: Rectangle = Rectangle {
     x: 350.0,
-    y: 110.0 + 12.0 / 2.0,
-    width: 12.0,
-    height: 12.0,
+    y: 110.0,
+    width: 100.0,
+    height: 24.0,
 };
 
 const STRATEGY_LIST: Rectangle = Rectangle {
@@ -278,8 +278,8 @@ fn main() {
 
     let mut selected_strategy = 0;
     let mut strategy_edit = false;
-    let mut animation = false;
-    let mut animate_fps = 5;
+    let mut animate_fps_x5: i32 = 0;
+    let mut animation_edit = false;
 
     while !handle.window_should_close() {
         if handle.is_mouse_button_down(raylib::consts::MouseButton::MOUSE_BUTTON_LEFT)
@@ -314,8 +314,6 @@ fn main() {
 
             draw_handle.draw_rectangle(0, 0, 1100, 200, raylib::color::Color::RAYWHITE);
 
-            draw_handle.gui_check_box(ANIMATE_CHECKBOX, Some(rstr!("Animate")), &mut animation);
-
             if draw_handle.gui_dropdown_box(
                 STRATEGY_LIST,
                 Some(rstr!("BFS;A*")),
@@ -323,7 +321,15 @@ fn main() {
                 strategy_edit,
             ) {
                 strategy_edit = !strategy_edit;
-                println!("Selected strategy: {}", selected_strategy);
+            }
+
+            if draw_handle.gui_dropdown_box(
+                FPS_LIST,
+                Some(rstr!("No animation;5 FPS;10 FPS;15 FPS;20 FPS")),
+                &mut animate_fps_x5,
+                animation_edit,
+            ) {
+                animation_edit = !animation_edit;
             }
 
             // show result
@@ -382,13 +388,9 @@ fn main() {
         };
 
         if request_solve {
-            handle.set_target_fps(animate_fps);
-            
-            let max_nodes = if animation {
-                (30 * animate_fps) as usize
-            } else {
-                0
-            };
+            handle.set_target_fps((animate_fps_x5 * 5) as u32);
+
+            let max_nodes = (150 * animate_fps_x5) as usize;
 
             if let Some(mut s) = {
                 match selected_strategy {
