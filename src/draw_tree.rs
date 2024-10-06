@@ -145,6 +145,12 @@ impl RcRefDrawTreeNode {
             }
         } else {
             self.borrow().visibility.set(Visibility::None);
+
+            if left > bound.right {
+                self.borrow().draw_x.set(bound.right + 20);
+            } else {
+                self.borrow().draw_x.set(bound.left - 20);
+            }
         }
     }
 
@@ -265,14 +271,9 @@ impl RcRefDrawTreeNode {
             draw_handle.draw_rectangle(x, y + 8, 1, 3, color);
 
             // draw line across
-            let left_x = match inner.children.first().unwrap().borrow() {
-                node if node.visibility.get() == Visibility::None => bound.left - 50,
-                node => node.draw_x.get(),
-            };
-            let right_x = match inner.children.last().unwrap().borrow() {
-                node if node.visibility.get() == Visibility::None => bound.right + 50,
-                node => node.draw_x.get(),
-            };
+            let left_x = inner.children.first().unwrap().borrow().draw_x.get();
+            let right_x = inner.children.last().unwrap().borrow().draw_x.get();
+
             draw_handle.draw_rectangle(
                 left_x,
                 y + 8 + 3,
@@ -291,14 +292,10 @@ impl RcRefDrawTreeNode {
             }
 
             if inner.on_path.get() {
-                let other_end = match child_on_path_id {
-                    0 => left_x,
-                    x if x + 1 == inner.children.len() as i32 => right_x,
-                    _ => inner.children[child_on_path_id as usize]
-                        .borrow()
-                        .draw_x
-                        .get(),
-                };
+                let other_end = inner.children[child_on_path_id as usize]
+                    .borrow()
+                    .draw_x
+                    .get();
 
                 let (start_x, end_x) = if x < other_end {
                     (x, other_end)
