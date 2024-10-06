@@ -292,9 +292,9 @@ fn main() {
                 );
             } else {
                 start_pos = Some((handle.get_mouse_x(), handle.get_mouse_y()));
+                offset_xy_old = offset_xy;
             }
         } else if start_pos.is_some() {
-            offset_xy_old = offset_xy;
             start_pos = None;
         }
 
