@@ -1,9 +1,10 @@
 mod draw_tree;
 mod logic;
-mod ui;
 pub mod name;
+mod ui;
 
 use std::{
+    cell::Cell,
     collections::HashMap,
     marker::PhantomData,
     ops::{Deref, DerefMut},
@@ -121,7 +122,7 @@ struct AnimatedSearchTree<'handle> {
     map: HashMap<Puzzle, (Puzzle, i32)>,
     handle: &'handle mut RaylibHandle,
     thread: &'handle RaylibThread,
-    max_nodes: usize,
+    max_nodes: Cell<usize>,
     alice: Vec<Texture2D>,
 }
 
@@ -132,6 +133,7 @@ struct AnimatingSearchTree<'handle: 'draw, 'draw, 'data> {
     draw_handle: RaylibDrawHandle<'draw>,
     thread: PhantomData<&'handle RaylibThread>,
     alice: &'data Texture2D,
+    max_nodes: &'data mut Cell<usize>,
 }
 
 impl<'handle: 'draw, 'draw, 'data> AnimatingSearchTree<'handle, 'draw, 'data> {
@@ -156,6 +158,7 @@ impl<'handle: 'draw, 'draw, 'data> AnimatingSearchTree<'handle, 'draw, 'data> {
             draw_handle,
             thread: PhantomData,
             alice: &tree.alice[alice_id],
+            max_nodes: &mut tree.max_nodes,
         }
     }
 }
@@ -190,7 +193,7 @@ impl<'a> AsMapSearchTree for AnimatedSearchTree<'a> {
         &mut self.map
     }
     fn step_callback(&mut self, current: &Puzzle, _: (&Puzzle, bool)) {
-        if self.map.len() > self.max_nodes {
+        if self.map.len() > self.max_nodes.get() {
             return;
         }
         // draw alice in loop
@@ -208,6 +211,18 @@ impl<'a> AsMapSearchTree for AnimatedSearchTree<'a> {
             raylib::color::Color::WHITE,
         );
 
+        if animating.draw_handle.gui_button(
+            Rectangle {
+                x: 0.0,
+                y: 0.0,
+                width: 100.0,
+                height: 20.0,
+            },
+            Some(rstr!("Skip animation")),
+        ) {
+            animating.max_nodes.set(0);
+        }
+
         let map_search_tree = MapSearchTree {
             inner: &mut animating,
         };
@@ -215,7 +230,10 @@ impl<'a> AsMapSearchTree for AnimatedSearchTree<'a> {
         a.draw(
             &mut animating.draw_handle,
             &ANIM_BOUND,
-            (500 - b.map(|x| x.borrow().center_x).unwrap_or(0), ANIM_BOUND.top + 20),
+            (
+                500 - b.map(|x| x.borrow().center_x).unwrap_or(0),
+                ANIM_BOUND.top + 20,
+            ),
         );
     }
 }
@@ -500,7 +518,7 @@ fn solve<'a, T: Heuristic>(
             map: HashMap::new(),
             handle,
             thread,
-            max_nodes,
+            max_nodes: Cell::new(max_nodes),
             alice,
         },
     };
