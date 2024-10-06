@@ -1,3 +1,5 @@
+pub mod bfs;
+
 use std::collections::{BinaryHeap, HashMap, VecDeque};
 
 use rand::Rng;
