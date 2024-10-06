@@ -4,6 +4,7 @@ mod ui;
 
 use std::{
     collections::HashMap,
+    marker::PhantomData,
     ops::{Deref, DerefMut},
 };
 
@@ -122,7 +123,7 @@ struct AnimatingSearchTree<'handle: 'draw, 'draw, 'data> {
     initial: &'data Puzzle,
     map: &'data HashMap<Puzzle, (Puzzle, i32)>,
     draw_handle: RaylibDrawHandle<'draw>,
-    thread: &'handle RaylibThread,
+    thread: PhantomData<&'handle RaylibThread>,
 }
 
 impl<'handle: 'draw, 'draw, 'data> AnimatingSearchTree<'handle, 'draw, 'data> {
@@ -142,7 +143,7 @@ impl<'handle: 'draw, 'draw, 'data> AnimatingSearchTree<'handle, 'draw, 'data> {
             initial,
             map,
             draw_handle,
-            thread,
+            thread: PhantomData,
         }
     }
 }
