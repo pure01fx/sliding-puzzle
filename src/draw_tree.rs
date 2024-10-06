@@ -298,7 +298,7 @@ impl RcRefDrawTreeNode {
                 }
             }
 
-            if inner.on_path.get() {
+            if inner.on_path.get() && child_on_path_id >= 0 {
                 let other_end = inner.children[child_on_path_id as usize]
                     .borrow()
                     .draw_x

@@ -122,7 +122,7 @@ pub trait SearchTree {
     fn goal_reached(&self) -> bool;
     fn get(&self, key: &Puzzle) -> Option<(Puzzle, i32)>;
     fn set(&mut self, key: Puzzle, value: (Puzzle, i32));
-    fn step_callback(&self, _current: &Puzzle, _next: (&Puzzle, bool)) {}
+    fn step_callback(&mut self, _current: &Puzzle, _next: (&Puzzle, bool)) {}
 }
 
 #[derive(Clone, Debug)]

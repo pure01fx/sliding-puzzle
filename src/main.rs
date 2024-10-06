@@ -17,6 +17,7 @@ pub trait AsMapSearchTree {
     fn initial(&self) -> &Puzzle;
     fn map(&self) -> &HashMap<Puzzle, (Puzzle, i32)>;
     fn map_mut(&mut self) -> &mut HashMap<Puzzle, (Puzzle, i32)>;
+    fn step_callback(&mut self, _: &Puzzle, _: (&Puzzle, bool));
 
     fn as_map_search_tree(&mut self) -> MapSearchTree<'_, Self>
     where
@@ -104,6 +105,92 @@ impl AsMapSearchTree for NativeSearchTree {
     fn map_mut(&mut self) -> &mut HashMap<Puzzle, (Puzzle, i32)> {
         &mut self.map
     }
+    fn step_callback(&mut self, _: &Puzzle, _: (&Puzzle, bool)) {}
+}
+
+struct AnimatedSearchTree<'handle> {
+    goal: Puzzle,
+    initial: Puzzle,
+    map: HashMap<Puzzle, (Puzzle, i32)>,
+    handle: &'handle mut RaylibHandle,
+    thread: &'handle RaylibThread,
+    max_nodes: usize,
+}
+
+struct AnimatingSearchTree<'handle: 'draw, 'draw, 'data> {
+    goal: &'data Puzzle,
+    initial: &'data Puzzle,
+    map: &'data HashMap<Puzzle, (Puzzle, i32)>,
+    draw_handle: RaylibDrawHandle<'draw>,
+    thread: &'handle RaylibThread,
+}
+
+impl<'handle: 'draw, 'draw, 'data> AnimatingSearchTree<'handle, 'draw, 'data> {
+    fn from_animated_tree<'a: 'draw + 'data>(tree: &'a mut AnimatedSearchTree<'handle>) -> Self {
+        let AnimatedSearchTree {
+            goal,
+            initial,
+            map,
+            handle,
+            thread,
+            ..
+        } = tree;
+        let mut draw_handle = RaylibHandle::begin_drawing(handle, thread);
+        draw_handle.clear_background(raylib::color::Color::WHITE);
+        AnimatingSearchTree {
+            goal,
+            initial,
+            map,
+            draw_handle,
+            thread,
+        }
+    }
+}
+
+impl AsMapSearchTree for AnimatingSearchTree<'_, '_, '_> {
+    fn goal(&self) -> &Puzzle {
+        self.goal
+    }
+    fn initial(&self) -> &Puzzle {
+        self.initial
+    }
+    fn map(&self) -> &HashMap<Puzzle, (Puzzle, i32)> {
+        self.map
+    }
+    fn map_mut(&mut self) -> &mut HashMap<Puzzle, (Puzzle, i32)> {
+        panic!("AnimatingSearchTree is read-only");
+    }
+    fn step_callback(&mut self, _: &Puzzle, _: (&Puzzle, bool)) {}
+}
+
+impl<'a> AsMapSearchTree for AnimatedSearchTree<'a> {
+    fn goal(&self) -> &Puzzle {
+        &self.goal
+    }
+    fn initial(&self) -> &Puzzle {
+        &self.initial
+    }
+    fn map(&self) -> &HashMap<Puzzle, (Puzzle, i32)> {
+        &self.map
+    }
+    fn map_mut(&mut self) -> &mut HashMap<Puzzle, (Puzzle, i32)> {
+        &mut self.map
+    }
+    fn step_callback(&mut self, current: &Puzzle, _: (&Puzzle, bool)) {
+        if self.map.len() > self.max_nodes {
+            return;
+        }
+        let mut animating = AnimatingSearchTree::from_animated_tree(self);
+        let map_search_tree = MapSearchTree {
+            inner: &mut animating,
+        };
+        let (a, b) = RcRefDrawTreeNode::new_from_map_search_tree(&map_search_tree, current);
+        a.draw(
+            &mut animating.draw_handle,
+            &MAIN_BOUND,
+            (500 - b.map(|x| x.borrow().center_x).unwrap_or(0), 220),
+        );
+    }
 }
 
 impl<T: AsMapSearchTree> SearchTree for MapSearchTree<'_, T> {
@@ -117,6 +204,10 @@ impl<T: AsMapSearchTree> SearchTree for MapSearchTree<'_, T> {
 
     fn set(&mut self, key: Puzzle, value: (Puzzle, i32)) {
         self.map_mut().insert(key, value);
+    }
+
+    fn step_callback(&mut self, current: &Puzzle, next: (&Puzzle, bool)) {
+        self.inner.step_callback(current, next);
     }
 }
 
@@ -148,11 +239,25 @@ const RANDOM_INIT_BUTTON: Rectangle = Rectangle {
     height: 24.0,
 };
 
+const ANIMATE_CHECKBOX: Rectangle = Rectangle {
+    x: 350.0,
+    y: 110.0 + 12.0 / 2.0,
+    width: 12.0,
+    height: 12.0,
+};
+
 const STRATEGY_LIST: Rectangle = Rectangle {
     x: 350.0,
-    y: 110.0,
+    y: 140.0,
     width: 100.0,
     height: 24.0,
+};
+
+const MAIN_BOUND: IntRectBound = IntRectBound {
+    left: 0 + 10,
+    top: 200,
+    right: 1024 - 10,
+    bottom: 800,
 };
 
 fn main() {
@@ -173,6 +278,8 @@ fn main() {
 
     let mut selected_strategy = 0;
     let mut strategy_edit = false;
+    let mut animation = false;
+    let mut animate_fps = 5;
 
     while !handle.window_should_close() {
         if handle.is_mouse_button_down(raylib::consts::MouseButton::MOUSE_BUTTON_LEFT)
@@ -199,18 +306,15 @@ fn main() {
                 if let Some(((solution, _), _)) = &solution_tree {
                     solution.draw(
                         &mut draw_handle,
-                        &IntRectBound {
-                            left: 0 + 10,
-                            top: 200,
-                            right: 1024 - 10,
-                            bottom: 800,
-                        },
+                        &MAIN_BOUND,
                         (500 + offset_xy.0, 220 + offset_xy.1),
                     );
                 }
             }
 
             draw_handle.draw_rectangle(0, 0, 1100, 200, raylib::color::Color::RAYWHITE);
+
+            draw_handle.gui_check_box(ANIMATE_CHECKBOX, Some(rstr!("Animate")), &mut animation);
 
             if draw_handle.gui_dropdown_box(
                 STRATEGY_LIST,
@@ -278,10 +382,18 @@ fn main() {
         };
 
         if request_solve {
+            handle.set_target_fps(animate_fps);
+            
+            let max_nodes = if animation {
+                (30 * animate_fps) as usize
+            } else {
+                0
+            };
+
             if let Some(mut s) = {
                 match selected_strategy {
-                    1 => solve::<AStarHeuristic>(initial, goal),
-                    _ => solve::<BfsHeuristic>(initial, goal),
+                    1 => solve::<AStarHeuristic>(initial, goal, &mut handle, &thread, max_nodes),
+                    _ => solve::<BfsHeuristic>(initial, goal, &mut handle, &thread, max_nodes),
                 }
             } {
                 let count = s.map.len();
@@ -295,6 +407,7 @@ fn main() {
             } else {
                 solution_tree = None;
             }
+            handle.set_target_fps(60);
 
             show_result = true;
         }
@@ -328,15 +441,24 @@ fn button_draw(
         && draw_handle.gui_button(SOLVE_BUTTON, Some(rstr!("Solve")))
 }
 
-fn solve<T: Heuristic>(initial: Puzzle, goal: Puzzle) -> Option<NativeSearchTree> {
+fn solve<'a, T: Heuristic>(
+    initial: Puzzle,
+    goal: Puzzle,
+    handle: &'a mut RaylibHandle,
+    thread: &'a RaylibThread,
+    max_nodes: usize,
+) -> Option<AnimatedSearchTree<'a>> {
     let mut tree = OwnedMapSearchTree {
-        inner: NativeSearchTree {
+        inner: AnimatedSearchTree {
             goal,
             initial,
             map: HashMap::new(),
+            handle,
+            thread,
+            max_nodes,
         },
     };
-    let mut tree_ref = tree.make_ref();
+    let mut tree_ref: MapSearchTree<'_, AnimatedSearchTree<'_>> = tree.make_ref();
     solve_from_initial::<_, T>(initial, goal, &mut tree_ref);
     match tree_ref.goal_reached() {
         true => {
