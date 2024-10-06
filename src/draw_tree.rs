@@ -36,6 +36,7 @@ pub struct DrawTreeNode {
     max_x: i32,
     draw_x: Cell<i32>,
     visibility: Cell<Visibility>,
+    on_path: Cell<bool>,
 }
 
 #[derive(Clone)]
@@ -60,17 +61,25 @@ impl DrawTreeNode {
             max_x: 0,
             draw_x: Cell::new(0),
             visibility: Cell::new(Visibility::None),
+            on_path: Cell::new(false),
         })))
     }
 }
 
 impl RcRefDrawTreeNode {
-    fn build_depth(&self, depth: u32) {
+    fn build_depth(&self, depth: u32, path_end: &Puzzle) -> bool {
+        let on_path = self.borrow().puzzle == *path_end
+            || self
+                .borrow()
+                .children
+                .iter()
+                .map(|child| child.build_depth(depth + 1, path_end))
+                .fold(false, |acc, x| acc || x);
+
+        self.borrow().on_path.set(on_path);
         self.borrow_mut().depth = depth;
-        for child in self.borrow().children.iter() {
-            assert!(child.borrow().puzzle != self.borrow().puzzle);
-            child.build_depth(depth + 1);
-        }
+
+        on_path
     }
 
     fn build_coord(&self) {
@@ -189,7 +198,12 @@ impl RcRefDrawTreeNode {
             true => Visibility::Full,
             false => Visibility::Partial,
         });
-        draw_small_puzzle(draw_handle, &inner.puzzle, SmallPuzzleCenter { x, y });
+        draw_small_puzzle(
+            draw_handle,
+            &inner.puzzle,
+            SmallPuzzleCenter { x, y },
+            inner.on_path.get(),
+        );
 
         if !inner.children.is_empty() {
             // // draw line down
@@ -229,6 +243,11 @@ impl RcRefDrawTreeNode {
         }
 
         let inner = self.borrow();
+        let color = if inner.on_path.get() {
+            raylib::color::Color::RED
+        } else {
+            raylib::color::Color::BLACK
+        };
         let x = inner.draw_x.get();
         let y = offset.1 + inner.depth as i32 * (13 + 9) + 4;
 
@@ -236,14 +255,14 @@ impl RcRefDrawTreeNode {
             return;
         }
 
-        if inner.depth != 0{
+        if inner.depth != 0 {
             // draw line up
-            draw_handle.draw_rectangle(x, y - 10, 1, 3, raylib::color::Color::BLACK);
+            draw_handle.draw_rectangle(x, y - 10, 1, 3, color);
         }
 
         if !inner.children.is_empty() {
             // draw line down
-            draw_handle.draw_rectangle(x, y + 8, 1, 3, raylib::color::Color::BLACK);
+            draw_handle.draw_rectangle(x, y + 8, 1, 3, color);
 
             // draw line across
             let left_x = match inner.children.first().unwrap().borrow() {
@@ -262,15 +281,46 @@ impl RcRefDrawTreeNode {
                 raylib::color::Color::BLACK,
             );
 
-            for child in inner.children.iter() {
+            let mut child_on_path_id = -1;
+
+            for (child, id) in inner.children.iter().zip(0..) {
                 child.draw_phase_3(draw_handle, bound, offset);
+                if child.borrow().on_path.get() {
+                    child_on_path_id = id as i32;
+                }
+            }
+
+            if inner.on_path.get() {
+                let other_end = match child_on_path_id {
+                    0 => left_x,
+                    x if x + 1 == inner.children.len() as i32 => right_x,
+                    _ => inner.children[child_on_path_id as usize]
+                        .borrow()
+                        .draw_x
+                        .get(),
+                };
+
+                let (start_x, end_x) = if x < other_end {
+                    (x, other_end)
+                } else {
+                    (other_end, x)
+                };
+
+                draw_handle.draw_rectangle(
+                    start_x,
+                    y + 8 + 3,
+                    end_x - start_x + 1,
+                    1,
+                    raylib::color::Color::RED,
+                );
             }
         }
     }
-}
 
-impl<T: AsMapSearchTree> From<MapSearchTree<'_, T>> for RcRefDrawTreeNode {
-    fn from(tree: MapSearchTree<T>) -> Self {
+    pub fn new_from_map_search_tree<T: AsMapSearchTree>(
+        tree: &MapSearchTree<'_, T>,
+        path_end: &Puzzle,
+    ) -> RcRefDrawTreeNode {
         let root_node = DrawTreeNode::new_rc_ref(*tree.initial());
         let mut temp_nodes = HashMap::new();
 
@@ -292,9 +342,15 @@ impl<T: AsMapSearchTree> From<MapSearchTree<'_, T>> for RcRefDrawTreeNode {
                 .push(puzzle_node.clone());
         }
 
-        root_node.build_depth(0);
+        root_node.build_depth(0, path_end);
         root_node.build_coord();
 
         root_node
+    }
+}
+
+impl<T: AsMapSearchTree> From<MapSearchTree<'_, T>> for RcRefDrawTreeNode {
+    fn from(tree: MapSearchTree<T>) -> Self {
+        RcRefDrawTreeNode::new_from_map_search_tree(&tree, tree.goal())
     }
 }

@@ -57,6 +57,7 @@ pub fn draw_small_puzzle(
     draw_handle: &mut RaylibDrawHandle,
     puzzle: &Puzzle,
     coord: impl PuzzleCoord,
+    with_border: bool,
 ) {
     let (x, y) = coord.get_top_left();
     for i in 0..3 {
@@ -72,5 +73,9 @@ pub fn draw_small_puzzle(
                 );
             }
         }
+    }
+
+    if with_border {
+        draw_handle.draw_rectangle_lines(x - 2, y - 2, 13, 13, Color::RED);
     }
 }
