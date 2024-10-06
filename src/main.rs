@@ -346,16 +346,35 @@ fn main() {
     let mut show_result = false;
     let mut solution_tree = None;
 
+    let mut offset_xy = (0, 0);
+    let mut offset_xy_old = (0, 0);
+    let mut start_pos: Option<(i32, i32)> = None;
+
     handle.gui_enable();
 
     while !handle.window_should_close() {
+
+        if handle.is_mouse_button_down(raylib::consts::MouseButton::MOUSE_BUTTON_LEFT) {
+            if let Some(start) = start_pos {
+                offset_xy = (
+                    handle.get_mouse_x() - start.0 + offset_xy_old.0,
+                    handle.get_mouse_y() - start.1 + offset_xy_old.1,
+                );
+            } else {
+                start_pos = Some((handle.get_mouse_x(), handle.get_mouse_y()));
+            }
+        } else if start_pos.is_some() {
+            offset_xy_old = offset_xy;
+            start_pos = None;
+        }
+
         let request_solve = {
             let mut draw_handle = handle.begin_drawing(&thread);
             draw_handle.clear_background(raylib::color::Color::RAYWHITE);
 
             // show result
             if show_result {
-                result_draw(&solution_tree, &mut draw_handle);
+                result_draw(&solution_tree, &mut draw_handle, offset_xy);
             }
 
             if let Some(set_goal) = &mut setting_goal {
@@ -433,14 +452,14 @@ fn button_draw(
         && draw_handle.gui_button(SOLVE_BUTTON, Some(rstr!("Solve")))
 }
 
-fn result_draw(has_solution: &Option<RcRefDrawTreeNode>, draw_handle: &mut RaylibDrawHandle<'_>) {
+fn result_draw(has_solution: &Option<RcRefDrawTreeNode>, draw_handle: &mut RaylibDrawHandle<'_>, offset: (i32, i32)) {
     if let Some(solution) = has_solution {
         draw_handle.draw_text("Solution found", 500, 50, 20, raylib::color::Color::GREEN);
         solution.draw(
             draw_handle,
             &IntRect {
-                x: 50,
-                y: 350,
+                x: 50 + offset.0,
+                y: 350 + offset.1,
                 width: 900,
                 height: 400,
             },
