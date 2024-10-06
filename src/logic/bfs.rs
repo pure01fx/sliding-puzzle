@@ -7,7 +7,7 @@ impl Heuristic for BfsHeuristic {
         BfsHeuristic {}
     }
 
-    fn estimate(&mut self, _current: &Puzzle, _goal: &Puzzle) -> i32 {
+    fn estimate_h(&mut self, _current: &Puzzle, _goal: &Puzzle) -> i32 {
         0
     }
 }

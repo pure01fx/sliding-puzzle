@@ -1,8 +1,12 @@
-pub mod bfs;
+mod a_star;
+mod bfs;
 
-use std::collections::{BinaryHeap, HashMap, VecDeque};
+use std::collections::BinaryHeap;
 
 use rand::Rng;
+
+pub use a_star::AStarHeuristic;
+pub use bfs::BfsHeuristic;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Puzzle {
@@ -109,79 +113,9 @@ impl Direction {
     }
 }
 
-pub struct SolutionMap {
-    goal: Puzzle,
-    steps: HashMap<Puzzle, Direction>,
-}
-
-impl SolutionMap {
-    pub fn new(goal: Puzzle) -> Self {
-        let mut queue = VecDeque::new();
-        let mut steps = HashMap::new();
-
-        queue.push_back((goal, 0));
-
-        while let Some((current, step)) = queue.pop_front() {
-            for direction in Direction::all() {
-                if let Some(next) = current.move_zero(direction) {
-                    if !steps.contains_key(&next) {
-                        steps.insert(next, direction.reverse());
-                        queue.push_back((next, step + 1));
-                    }
-                }
-            }
-
-            if steps.len() % 1000 == 0 {
-                println!(
-                    "Building BFS step tree. Current {} items, depth {}",
-                    steps.len(),
-                    step
-                );
-            }
-        }
-
-        println!(
-            "BFS step tree built. Total {} items, memory usage {} bytes",
-            steps.len(),
-            std::mem::size_of::<Puzzle>() * steps.len()
-        );
-
-        SolutionMap { goal, steps }
-    }
-
-    pub fn reconstruct_path(&self, current: Puzzle) -> Vec<Puzzle> {
-        let mut path = Vec::new();
-        let mut current_state = current;
-
-        if !self.steps.contains_key(&current_state) {
-            return path;
-        }
-
-        path.push(current_state);
-
-        while let Some(dir) = self.steps.get(&current_state) {
-            let next = current_state.move_zero(*dir).unwrap();
-            path.push(next);
-            current_state = next;
-
-            if current_state == self.goal {
-                break;
-            }
-        }
-
-        path
-    }
-
-    pub fn goal(&self) -> &Puzzle {
-        &self.goal
-    }
-}
-
-// f = g + h
-
 pub trait Heuristic {
     fn new() -> Self;
-    fn estimate(&mut self, current: &Puzzle, goal: &Puzzle) -> i32;
+    fn estimate_h(&mut self, current: &Puzzle, goal: &Puzzle) -> i32;
 }
 
 pub trait SearchTree {
@@ -218,7 +152,11 @@ impl Ord for BinaryHeapNode {
     }
 }
 
-pub fn solve_from_initial<S: SearchTree, H: Heuristic>(initial: Puzzle, goal: Puzzle, closed_set: &mut S) {
+pub fn solve_from_initial<S: SearchTree, H: Heuristic>(
+    initial: Puzzle,
+    goal: Puzzle,
+    closed_set: &mut S,
+) {
     let mut open_set = BinaryHeap::new();
     let mut h_estimator = H::new();
 
@@ -239,7 +177,7 @@ pub fn solve_from_initial<S: SearchTree, H: Heuristic>(initial: Puzzle, goal: Pu
         for direction in Direction::all() {
             if let Some(next) = current.puzzle.move_zero(direction) {
                 let g = current_g + 1;
-                let h = h_estimator.estimate(&next, &goal);
+                let h = h_estimator.estimate_h(&next, &goal);
 
                 let update = match closed_set.get(&next) {
                     Some((_, prev_g)) => g < prev_g,

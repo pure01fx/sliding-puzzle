@@ -20,22 +20,6 @@ pub struct IntRectBound {
     pub bottom: i32,
 }
 
-impl IntRectBound {
-    pub fn has_intersection_center_rect(
-        &self,
-        center: (i32, i32),
-        width_x2: i32,
-        height_x2: i32,
-    ) -> bool {
-        let left = center.0 - width_x2;
-        let right = center.0 + width_x2;
-        let top = center.1 - height_x2;
-        let bottom = center.1 + height_x2;
-
-        left <= self.right && right >= self.left && top <= self.bottom && bottom >= self.top
-    }
-}
-
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Visibility {
     Full,

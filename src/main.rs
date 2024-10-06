@@ -8,7 +8,7 @@ use std::{
 };
 
 use draw_tree::{IntRectBound, RcRefDrawTreeNode};
-use logic::{bfs::BfsHeuristic, solve_from_initial, Puzzle, SearchTree, SolutionMap};
+use logic::{solve_from_initial, AStarHeuristic, BfsHeuristic, Heuristic, Puzzle, SearchTree};
 use raylib::{prelude::*, rgui::RaylibDrawGui, rstr};
 use ui::{elements::draw_puzzle, interactive_input::SetPuzzle};
 
@@ -122,14 +122,14 @@ impl<T: AsMapSearchTree> SearchTree for MapSearchTree<'_, T> {
 
 const SET_GOAL_BUTTON: Rectangle = Rectangle {
     x: 50.0,
-    y: 150.0,
+    y: 140.0,
     width: 85.0,
     height: 24.0,
 };
 
 const SET_INITIAL_BUTTON: Rectangle = Rectangle {
     x: 200.0,
-    y: 150.0,
+    y: 140.0,
     width: 85.0,
     height: 24.0,
 };
@@ -148,21 +148,31 @@ const RANDOM_INIT_BUTTON: Rectangle = Rectangle {
     height: 24.0,
 };
 
+const STRATEGY_LIST: Rectangle = Rectangle {
+    x: 350.0,
+    y: 140.0,
+    width: 100.0,
+    height: 24.0,
+};
+
 fn main() {
     let (mut handle, thread) = raylib::init().size(1024, 768).build();
     let mut goal = Puzzle::new([[1, 2, 3], [8, 0, 4], [7, 6, 5]]);
-    let mut initial = Puzzle::new([[1, 3, 0], [8, 2, 4], [7, 6, 5]]);
+    let mut initial = Puzzle::new([[1, 3, 4], [8, 2, 5], [0, 7, 6]]);
     let mut setting_goal: Option<SetPuzzle> = None;
     let mut setting_initial: Option<SetPuzzle> = None;
 
     let mut show_result = false;
-    let mut solution_tree: Option<RcRefDrawTreeNode> = None;
+    let mut solution_tree: Option<(RcRefDrawTreeNode, usize)> = None;
 
     let mut offset_xy = (0, 0);
     let mut offset_xy_old = (0, 0);
     let mut start_pos: Option<(i32, i32)> = None;
 
     handle.gui_enable();
+
+    let mut selected_strategy = 0;
+    let mut strategy_edit = false;
 
     while !handle.window_should_close() {
         if handle.is_mouse_button_down(raylib::consts::MouseButton::MOUSE_BUTTON_LEFT) {
@@ -184,7 +194,7 @@ fn main() {
             draw_handle.clear_background(raylib::color::Color::WHITE);
 
             if show_result {
-                if let Some(solution) = &solution_tree {
+                if let Some((solution, _)) = &solution_tree {
                     solution.draw(
                         &mut draw_handle,
                         &IntRectBound {
@@ -200,11 +210,21 @@ fn main() {
 
             draw_handle.draw_rectangle(0, 0, 1100, 200, raylib::color::Color::RAYWHITE);
 
+            if draw_handle.gui_dropdown_box(
+                STRATEGY_LIST,
+                Some(rstr!("BFS;A*")),
+                &mut selected_strategy,
+                strategy_edit,
+            ) {
+                strategy_edit = !strategy_edit;
+                println!("Selected strategy: {}", selected_strategy);
+            }
+
             // show result
             if show_result {
-                if let Some(_) = solution_tree {
+                if let Some((_, count)) = solution_tree {
                     draw_handle.draw_text(
-                        "Solution found",
+                        &*format!("Solution found, {} nodes", count),
                         500,
                         50,
                         20,
@@ -256,10 +276,16 @@ fn main() {
         };
 
         if request_solve {
-            if let Some(mut s) = solve(initial, goal) {
+            if let Some(mut s) = {
+                match selected_strategy {
+                    1 => solve::<AStarHeuristic>(initial, goal),
+                    _ => solve::<BfsHeuristic>(initial, goal),
+                }
+            } {
+                let count = s.map.len();
                 let s = s.as_map_search_tree();
                 print_map_search_tree(&s);
-                solution_tree = Some(s.into());
+                solution_tree = Some((s.into(), count));
             } else {
                 solution_tree = None;
             }
@@ -296,27 +322,7 @@ fn button_draw(
         && draw_handle.gui_button(SOLVE_BUTTON, Some(rstr!("Solve")))
 }
 
-fn solve(initial: Puzzle, goal: Puzzle) -> Option<NativeSearchTree> {
-    let bfs_solution = SolutionMap::new(goal);
-
-    let goal_map = bfs_solution.reconstruct_path(initial);
-
-    if goal_map.is_empty() {
-        return None;
-    }
-
-    println!("Initial state:");
-    println!("{}", initial);
-
-    println!("Goal state:");
-    println!("{}", bfs_solution.goal());
-
-    for step in goal_map {
-        println!("{}", step);
-    }
-
-    println!("\n----------------\n");
-
+fn solve<T: Heuristic>(initial: Puzzle, goal: Puzzle) -> Option<NativeSearchTree> {
     let mut tree = OwnedMapSearchTree {
         inner: NativeSearchTree {
             goal,
@@ -325,9 +331,12 @@ fn solve(initial: Puzzle, goal: Puzzle) -> Option<NativeSearchTree> {
         },
     };
     let mut tree_ref = tree.make_ref();
-    solve_from_initial::<_, BfsHeuristic>(initial, goal, &mut tree_ref);
-    assert!(tree_ref.goal_reached());
-    print_map_search_tree(&tree_ref);
-
-    Some(tree.inner)
+    solve_from_initial::<_, T>(initial, goal, &mut tree_ref);
+    match tree_ref.goal_reached() {
+        true => {
+            print_map_search_tree(&tree_ref);
+            Some(tree.inner)
+        }
+        false => None,
+    }
 }
