@@ -67,11 +67,6 @@ impl DrawTreeNode {
 }
 
 impl RcRefDrawTreeNode {
-    const SCALE: i32 = 3;
-
-    const PUZZLE_CELL: i32 = 2 * Self::SCALE + 1;
-    const PUZZLE_CENTER_OFFSET: i32 = Self::PUZZLE_CELL * 3 / 2;
-
     fn build_depth(&self, depth: u32, path_end: &Puzzle) -> (bool, Option<Self>) {
         let xx = self
             .borrow()
@@ -94,24 +89,24 @@ impl RcRefDrawTreeNode {
         }
     }
 
-    fn build_coord(&self) {
-        self.build_width_phase1();
-        self.build_width_phase2();
+    fn build_coord(&self, sizer: &PuzzleSizer) {
+        self.build_width_phase1(sizer);
+        self.build_width_phase2(sizer);
     }
 
-    fn build_width_phase1(&self) {
+    fn build_width_phase1(&self, sizer: &PuzzleSizer) {
         // The leaf nodes makes their min_x = -4 and max_x = 4
         // The parent nodes accumulate their children's min_x and max_x
         // and allocate 3px between each child.
         // The parent node's min_x and max_x are calculated
         // based on the width of the children.
         if self.borrow().children.is_empty() {
-            self.borrow_mut().min_x = -Self::PUZZLE_CENTER_OFFSET;
-            self.borrow_mut().max_x = Self::PUZZLE_CENTER_OFFSET;
+            self.borrow_mut().min_x = -sizer.puzzle_center_offset();
+            self.borrow_mut().max_x = sizer.puzzle_center_offset();
         } else {
-            let mut width = (self.borrow().children.len() - 1) as i32 * Self::PUZZLE_CELL;
+            let mut width = (self.borrow().children.len() - 1) as i32 * sizer.puzzle_cell();
             for child in self.borrow().children.iter() {
-                child.build_width_phase1();
+                child.build_width_phase1(sizer);
                 width += child.borrow().max_x - child.borrow().min_x + 1;
             }
 
@@ -121,7 +116,7 @@ impl RcRefDrawTreeNode {
         }
     }
 
-    fn build_width_phase2(&self) {
+    fn build_width_phase2(&self, sizer: &PuzzleSizer) {
         // The parent node adjusts its children's center_x, min_x and max_x
         // based on the parent's center_x, min_x and max_x to make the parent
         // is at the center of its children.
@@ -137,10 +132,10 @@ impl RcRefDrawTreeNode {
                 child.min_x = new_min;
                 child.max_x = new_max;
 
-                left = new_max + Self::PUZZLE_CELL + 1;
+                left = new_max + sizer.puzzle_cell() + 1;
             }
 
-            child.build_width_phase2();
+            child.build_width_phase2(sizer);
         }
     }
 
@@ -166,24 +161,14 @@ impl RcRefDrawTreeNode {
         }
     }
 
-    pub fn draw(
-        &self,
-        draw_handle: &mut RaylibDrawHandle,
-        bound: &IntRectBound,
-        offset: (i32, i32),
-    ) {
-        self.update_visibility(bound, offset);
-        self.draw_phase_2(draw_handle, bound, offset, false);
-        self.draw_phase_3(draw_handle, bound, offset);
+    pub fn draw(&self, painter: &mut ElementPainter) {
+        self.build_coord(&painter.sizer);
+        self.update_visibility(&painter.bound, painter.offset);
+        self.draw_phase_2(painter, false);
+        self.draw_phase_3(painter);
     }
 
-    pub fn draw_phase_2(
-        &self,
-        draw_handle: &mut RaylibDrawHandle,
-        bound: &IntRectBound,
-        offset: (i32, i32),
-        fully_visible: bool,
-    ) {
+    pub fn draw_phase_2(&self, painter: &mut ElementPainter, fully_visible: bool) {
         if !fully_visible && self.borrow().visibility.get() == Visibility::None {
             return;
         }
@@ -193,122 +178,65 @@ impl RcRefDrawTreeNode {
         let inner = self.borrow();
         let center_x = inner.center_x;
 
-        let y = offset.1
-            + inner.depth as i32 * ((4 * Self::PUZZLE_CELL + 1) + Self::PUZZLE_CELL * 3)
-            + Self::PUZZLE_CENTER_OFFSET;
+        if let Some(y) = painter.get_draw_y(inner.depth) {
+            let x = painter.get_draw_x(center_x);
 
-        if y > bound.bottom {
-            return;
-        }
+            painter.draw_small_puzzle(&inner.puzzle, x, y, inner.on_path.get());
 
-        let x = match fully_visible {
-            true => center_x + offset.0,
-            false => match center_x + offset.0 {
-                x if x >= bound.left && x <= bound.right => x,
-                _ => match center_x + offset.0 {
-                    x if x < bound.left => bound.left,
-                    _ => bound.right,
-                },
-            },
-        };
+            inner.draw_x.set(x);
+            inner.visibility.set(match fully_visible {
+                true => Visibility::Full,
+                false => Visibility::Partial,
+            });
 
-        inner.draw_x.set(x);
-        inner.visibility.set(match fully_visible {
-            true => Visibility::Full,
-            false => Visibility::Partial,
-        });
-        draw_small_puzzle(
-            draw_handle,
-            &inner.puzzle,
-            SmallPuzzleCenter {
-                x,
-                y,
-                cell_size: Self::PUZZLE_CELL,
-            },
-            inner.on_path.get(),
-        );
-
-        if !inner.children.is_empty() {
-            for child in inner.children.iter() {
-                child.draw_phase_2(draw_handle, bound, offset, fully_visible);
+            if !inner.children.is_empty() {
+                for child in inner.children.iter() {
+                    child.draw_phase_2(painter, fully_visible);
+                }
             }
         }
     }
 
-    fn draw_phase_3(
-        &self,
-        draw_handle: &mut RaylibDrawHandle,
-        bound: &IntRectBound,
-        offset: (i32, i32),
-    ) {
+    fn draw_phase_3(&self, painter: &mut ElementPainter) {
         if self.borrow().visibility.get() == Visibility::None {
             return;
         }
 
         let inner = self.borrow();
-        let color = if inner.on_path.get() {
-            Color::RED
-        } else {
-            Color::BLACK
-        };
-        let x = inner.draw_x.get();
-        let y = offset.1
-            + inner.depth as i32 * ((4 * Self::PUZZLE_CELL + 1) + Self::PUZZLE_CELL * 3)
-            + Self::PUZZLE_CENTER_OFFSET;
+        let on_path = inner.on_path.get();
 
-        if y > bound.bottom {
-            return;
-        }
+        if let Some(y) = painter.get_draw_y(inner.depth) {
+            let x = inner.draw_x.get();
 
-        if inner.depth != 0 {
-            // draw line up
-            draw_handle.draw_rectangle(
-                x,
-                y - Self::PUZZLE_CELL * 2 - Self::PUZZLE_CENTER_OFFSET,
-                1,
-                Self::PUZZLE_CELL,
-                color,
-            );
-        }
-
-        if !inner.children.is_empty() {
-            // draw line down
-            draw_handle.draw_rectangle(
-                x,
-                y + 1 + Self::PUZZLE_CELL + Self::PUZZLE_CENTER_OFFSET,
-                1,
-                Self::PUZZLE_CELL,
-                color,
-            );
-
-            // draw line across
-            let left_x = inner.children.first().unwrap().borrow().draw_x.get();
-            let right_x = inner.children.last().unwrap().borrow().draw_x.get();
-            let line_y = y + 1 + Self::PUZZLE_CELL + Self::PUZZLE_CENTER_OFFSET;
-
-            draw_handle.draw_rectangle(left_x, line_y, right_x - left_x + 1, 1, Color::BLACK);
-
-            let mut child_on_path_id = -1;
-
-            for (child, id) in inner.children.iter().zip(0..) {
-                child.draw_phase_3(draw_handle, bound, offset);
-                if child.borrow().on_path.get() {
-                    child_on_path_id = id as i32;
-                }
+            if inner.depth != 0 {
+                painter.draw_line_up(x, y, on_path);
             }
 
-            if inner.on_path.get() && child_on_path_id >= 0 {
-                let other_end = inner.children[child_on_path_id as usize]
-                    .borrow()
-                    .draw_x
-                    .get();
+            if !inner.children.is_empty() {
+                painter.draw_line_down(x, y, on_path);
 
-                let (start_x, end_x) = match x < other_end {
-                    true => (x, other_end),
-                    false => (other_end, x),
-                };
+                let left_x = inner.children.first().unwrap().borrow().draw_x.get();
+                let right_x = inner.children.last().unwrap().borrow().draw_x.get();
 
-                draw_handle.draw_rectangle(start_x, line_y, end_x - start_x + 1, 1, Color::RED);
+                painter.draw_line_across(left_x, right_x, y);
+
+                let mut child_on_path_id = -1;
+
+                for (child, id) in inner.children.iter().zip(0..) {
+                    child.draw_phase_3(painter);
+                    if child.borrow().on_path.get() {
+                        child_on_path_id = id as i32;
+                    }
+                }
+
+                if on_path && child_on_path_id >= 0 {
+                    let other_end = inner.children[child_on_path_id as usize]
+                        .borrow()
+                        .draw_x
+                        .get();
+
+                    painter.draw_line_across_on_path(x, y, other_end);
+                }
             }
         }
     }
@@ -339,9 +267,110 @@ impl RcRefDrawTreeNode {
         }
 
         let (_, goal_node) = root_node.build_depth(0, path_end);
-        root_node.build_coord();
 
         (root_node, goal_node)
+    }
+}
+
+pub struct PuzzleSizer {
+    pub scale: i32,
+}
+
+impl PuzzleSizer {
+    fn puzzle_cell(&self) -> i32 {
+        2 * self.scale + 1
+    }
+
+    fn puzzle_center_offset(&self) -> i32 {
+        self.puzzle_cell() * 3 / 2
+    }
+}
+
+pub struct ElementPainter<'a, 'b> {
+    pub draw_handle: &'b mut RaylibDrawHandle<'a>,
+    pub bound: IntRectBound,
+    pub offset: (i32, i32),
+    pub sizer: PuzzleSizer,
+}
+
+impl Deref for ElementPainter<'_, '_> {
+    type Target = PuzzleSizer;
+
+    fn deref(&self) -> &Self::Target {
+        &self.sizer
+    }
+}
+
+impl ElementPainter<'_, '_> {
+    fn get_draw_x(&self, center_x: i32) -> i32 {
+        match center_x + self.offset.0 {
+            x if x >= self.bound.left && x <= self.bound.right => x,
+            _ => match center_x + self.offset.0 {
+                x if x < self.bound.left => self.bound.left,
+                _ => self.bound.right,
+            },
+        }
+    }
+
+    fn get_draw_y(&self, depth: u32) -> Option<i32> {
+        match self.offset.1
+            + depth as i32 * ((4 * self.puzzle_cell() + 1) + self.puzzle_cell() * 3)
+            + self.puzzle_center_offset()
+        {
+            x if x > self.bound.bottom => None,
+            x => Some(x),
+        }
+    }
+
+    fn draw_small_puzzle(&mut self, puzzle: &Puzzle, x: i32, y: i32, on_path: bool) {
+        draw_small_puzzle(
+            self.draw_handle,
+            puzzle,
+            SmallPuzzleCenter {
+                x,
+                y,
+                cell_size: self.puzzle_cell(),
+            },
+            on_path,
+        );
+    }
+
+    fn draw_line_up(&mut self, x: i32, y: i32, on_path: bool) {
+        self.draw_handle.draw_rectangle(
+            x,
+            y - self.puzzle_cell() * 2 - self.puzzle_center_offset(),
+            1,
+            self.puzzle_cell(),
+            if on_path { Color::RED } else { Color::BLACK },
+        );
+    }
+
+    fn draw_line_down(&mut self, x: i32, y: i32, on_path: bool) {
+        self.draw_handle.draw_rectangle(
+            x,
+            y + 1 + self.puzzle_cell() + self.puzzle_center_offset(),
+            1,
+            self.puzzle_cell(),
+            if on_path { Color::RED } else { Color::BLACK },
+        );
+    }
+
+    fn draw_line_across(&mut self, left_x: i32, right_x: i32, y: i32) {
+        let line_y = y + 1 + 2 * self.puzzle_cell() + self.puzzle_center_offset();
+
+        self.draw_handle
+            .draw_rectangle(left_x, line_y, right_x - left_x + 1, 1, Color::BLACK);
+    }
+
+    fn draw_line_across_on_path(&mut self, x: i32, y: i32, other_end: i32) {
+        let line_y = y + 1 + 2 * self.puzzle_cell() + self.puzzle_center_offset();
+        let (start_x, end_x) = match x < other_end {
+            true => (x, other_end),
+            false => (other_end, x),
+        };
+
+        self.draw_handle
+            .draw_rectangle(start_x, line_y, end_x - start_x + 1, 1, Color::RED);
     }
 }
 

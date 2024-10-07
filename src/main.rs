@@ -10,7 +10,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use draw_tree::{IntRectBound, RcRefDrawTreeNode};
+use draw_tree::{ElementPainter, IntRectBound, PuzzleSizer, RcRefDrawTreeNode};
 use logic::{solve_from_initial, AStarHeuristic, BfsHeuristic, Heuristic, Puzzle, SearchTree};
 use name::AUTHOR_NOTE;
 use raylib::{prelude::*, rgui::RaylibDrawGui, rstr};
@@ -227,14 +227,16 @@ impl<'a> AsMapSearchTree for AnimatedSearchTree<'a> {
             inner: &mut animating,
         };
         let (a, b) = RcRefDrawTreeNode::new_from_map_search_tree(&map_search_tree, current);
-        a.draw(
-            &mut animating.draw_handle,
-            &ANIM_BOUND,
-            (
+        let mut painter = ElementPainter {
+            draw_handle: &mut animating.draw_handle,
+            bound: ANIM_BOUND,
+            offset: (
                 500 - b.map(|x| x.borrow().center_x).unwrap_or(0),
                 ANIM_BOUND.top + 20,
             ),
-        );
+            sizer: PuzzleSizer { scale: 2 },
+        };
+        a.draw(&mut painter);
     }
 }
 
@@ -334,8 +336,7 @@ fn main() {
     let mut animation_edit = false;
 
     while !handle.window_should_close() {
-        if handle.is_mouse_button_down(raylib::consts::MouseButton::MOUSE_BUTTON_LEFT)
-        {
+        if handle.is_mouse_button_down(raylib::consts::MouseButton::MOUSE_BUTTON_LEFT) {
             if let Some(start) = start_pos {
                 offset_xy = (
                     handle.get_mouse_x() - start.0 + offset_xy_old.0,
@@ -355,11 +356,13 @@ fn main() {
 
             if show_result {
                 if let Some(((solution, _), _)) = &solution_tree {
-                    solution.draw(
-                        &mut draw_handle,
-                        &MAIN_BOUND,
-                        (500 + offset_xy.0, 220 + offset_xy.1),
-                    );
+                    let mut painter = ElementPainter {
+                        draw_handle: &mut draw_handle,
+                        bound: MAIN_BOUND,
+                        offset: (500 + offset_xy.0, 220 + offset_xy.1),
+                        sizer: PuzzleSizer { scale: 1 },
+                    };
+                    solution.draw(&mut painter);
                 }
             }
 
