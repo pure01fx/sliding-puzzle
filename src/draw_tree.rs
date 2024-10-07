@@ -193,7 +193,7 @@ impl RcRefDrawTreeNode {
         let center_x = inner.center_x;
         let depth = inner.depth;
 
-        let y = offset.1 + depth as i32 * (13 + Self::PUZZLE_CELL * 3) + Self::PUZZLE_CELL * 3 / 2;
+        let y = offset.1 + depth as i32 * ((4 * Self::PUZZLE_CELL + 1) + Self::PUZZLE_CELL * 3) + Self::PUZZLE_CELL * 3 / 2;
 
         if y > bound.bottom {
             return;
@@ -246,7 +246,7 @@ impl RcRefDrawTreeNode {
             raylib::color::Color::BLACK
         };
         let x = inner.draw_x.get();
-        let y = offset.1 + inner.depth as i32 * (13 + Self::PUZZLE_CELL * 3) + Self::PUZZLE_CELL * 3 / 2;
+        let y = offset.1 + inner.depth as i32 * ((4 * Self::PUZZLE_CELL + 1) + Self::PUZZLE_CELL * 3) + Self::PUZZLE_CELL * 3 / 2;
 
         if y > bound.bottom {
             return;
@@ -254,12 +254,12 @@ impl RcRefDrawTreeNode {
 
         if inner.depth != 0 {
             // draw line up
-            draw_handle.draw_rectangle(x, y - 6 - Self::PUZZLE_CELL * 3 / 2, 1, 3, color);
+            draw_handle.draw_rectangle(x, y - Self::PUZZLE_CELL * 2 - Self::PUZZLE_CELL * 3 / 2, 1, Self::PUZZLE_CELL, color);
         }
 
         if !inner.children.is_empty() {
             // draw line down
-            draw_handle.draw_rectangle(x, y + 4 + Self::PUZZLE_CELL * 3 / 2, 1, 3, color);
+            draw_handle.draw_rectangle(x, y + 1 + Self::PUZZLE_CELL + Self::PUZZLE_CELL * 3 / 2, 1, Self::PUZZLE_CELL, color);
 
             // draw line across
             let left_x = inner.children.first().unwrap().borrow().draw_x.get();
@@ -267,7 +267,7 @@ impl RcRefDrawTreeNode {
 
             draw_handle.draw_rectangle(
                 left_x,
-                y + 4 + Self::PUZZLE_CELL * 3 / 2 + 3,
+                y + 1 + Self::PUZZLE_CELL * 2 + Self::PUZZLE_CELL * 3 / 2,
                 right_x - left_x + 1,
                 1,
                 raylib::color::Color::BLACK,
@@ -296,7 +296,7 @@ impl RcRefDrawTreeNode {
 
                 draw_handle.draw_rectangle(
                     start_x,
-                    y + 4 + Self::PUZZLE_CELL * 3 / 2 + 3,
+                    y + 1 + Self::PUZZLE_CELL * 2 + Self::PUZZLE_CELL * 3 / 2,
                     end_x - start_x + 1,
                     1,
                     raylib::color::Color::RED,
