@@ -11,7 +11,10 @@ use std::{
 };
 
 use draw_tree::{ElementPainter, IntRectBound, PuzzleSizer, RcRefDrawTreeNode};
-use logic::{solve_from_initial, AStarHeuristic1, AStarHeuristic2, BfsHeuristic, Heuristic, Puzzle, SearchTree};
+use logic::{
+    solve_from_initial, AStarHeuristic1, AStarHeuristic2, BfsHeuristic, Heuristic, Puzzle,
+    SearchTree,
+};
 use name::AUTHOR_NOTE;
 use raylib::{prelude::*, rgui::RaylibDrawGui, rstr};
 use ui::{
@@ -414,9 +417,13 @@ fn main() {
 
             // show result
             if show_result {
-                if let Some((_, count)) = solution_tree {
+                if let Some(((_, goal_node), count)) = &solution_tree {
                     draw_handle.draw_text(
-                        &*format!("Solution found, {} nodes", count),
+                        &*format!(
+                            "Solution found, {} nodes, take {} step(s).",
+                            count,
+                            goal_node.as_ref().unwrap().borrow().depth
+                        ),
                         500,
                         52,
                         20,

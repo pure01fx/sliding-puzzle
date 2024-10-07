@@ -29,7 +29,7 @@ enum Visibility {
 
 pub struct DrawTreeNode {
     puzzle: Puzzle,
-    depth: u32,
+    pub depth: u32,
     children: Vec<RcRefDrawTreeNode>,
     pub center_x: i32,
     min_x: i32,
