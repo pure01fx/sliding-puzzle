@@ -87,5 +87,7 @@ pub fn draw_small_puzzle(
 
     if with_border {
         draw_handle.draw_rectangle_lines(x - 2, y - 2, 4 + cell_size * 3, 4 + cell_size * 3, Color::RED);
+    } else {
+        draw_handle.draw_rectangle_lines(x - 1, y - 1, 2 + cell_size * 3, 2 + cell_size * 3, Color::BLACK);
     }
 }
