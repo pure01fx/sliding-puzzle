@@ -5,7 +5,7 @@ use std::{
     rc::Rc,
 };
 
-use raylib::prelude::*;
+use raylib::{color::Color, prelude::*};
 
 use crate::{
     logic::Puzzle,
@@ -70,6 +70,7 @@ impl RcRefDrawTreeNode {
     const SCALE: i32 = 3;
 
     const PUZZLE_CELL: i32 = 2 * Self::SCALE + 1;
+    const PUZZLE_CENTER_OFFSET: i32 = Self::PUZZLE_CELL * 3 / 2;
 
     fn build_depth(&self, depth: u32, path_end: &Puzzle) -> (bool, Option<Self>) {
         let xx = self
@@ -105,8 +106,8 @@ impl RcRefDrawTreeNode {
         // The parent node's min_x and max_x are calculated
         // based on the width of the children.
         if self.borrow().children.is_empty() {
-            self.borrow_mut().min_x = -Self::PUZZLE_CELL * 3 / 2;
-            self.borrow_mut().max_x = Self::PUZZLE_CELL * 3 / 2;
+            self.borrow_mut().min_x = -Self::PUZZLE_CENTER_OFFSET;
+            self.borrow_mut().max_x = Self::PUZZLE_CENTER_OFFSET;
         } else {
             let mut width = (self.borrow().children.len() - 1) as i32 * Self::PUZZLE_CELL;
             for child in self.borrow().children.iter() {
@@ -191,9 +192,10 @@ impl RcRefDrawTreeNode {
 
         let inner = self.borrow();
         let center_x = inner.center_x;
-        let depth = inner.depth;
 
-        let y = offset.1 + depth as i32 * ((4 * Self::PUZZLE_CELL + 1) + Self::PUZZLE_CELL * 3) + Self::PUZZLE_CELL * 3 / 2;
+        let y = offset.1
+            + inner.depth as i32 * ((4 * Self::PUZZLE_CELL + 1) + Self::PUZZLE_CELL * 3)
+            + Self::PUZZLE_CENTER_OFFSET;
 
         if y > bound.bottom {
             return;
@@ -218,7 +220,11 @@ impl RcRefDrawTreeNode {
         draw_small_puzzle(
             draw_handle,
             &inner.puzzle,
-            SmallPuzzleCenter { x, y, cell_size: Self::PUZZLE_CELL },
+            SmallPuzzleCenter {
+                x,
+                y,
+                cell_size: Self::PUZZLE_CELL,
+            },
             inner.on_path.get(),
         );
 
@@ -241,12 +247,14 @@ impl RcRefDrawTreeNode {
 
         let inner = self.borrow();
         let color = if inner.on_path.get() {
-            raylib::color::Color::RED
+            Color::RED
         } else {
-            raylib::color::Color::BLACK
+            Color::BLACK
         };
         let x = inner.draw_x.get();
-        let y = offset.1 + inner.depth as i32 * ((4 * Self::PUZZLE_CELL + 1) + Self::PUZZLE_CELL * 3) + Self::PUZZLE_CELL * 3 / 2;
+        let y = offset.1
+            + inner.depth as i32 * ((4 * Self::PUZZLE_CELL + 1) + Self::PUZZLE_CELL * 3)
+            + Self::PUZZLE_CENTER_OFFSET;
 
         if y > bound.bottom {
             return;
@@ -254,24 +262,31 @@ impl RcRefDrawTreeNode {
 
         if inner.depth != 0 {
             // draw line up
-            draw_handle.draw_rectangle(x, y - Self::PUZZLE_CELL * 2 - Self::PUZZLE_CELL * 3 / 2, 1, Self::PUZZLE_CELL, color);
+            draw_handle.draw_rectangle(
+                x,
+                y - Self::PUZZLE_CELL * 2 - Self::PUZZLE_CENTER_OFFSET,
+                1,
+                Self::PUZZLE_CELL,
+                color,
+            );
         }
 
         if !inner.children.is_empty() {
             // draw line down
-            draw_handle.draw_rectangle(x, y + 1 + Self::PUZZLE_CELL + Self::PUZZLE_CELL * 3 / 2, 1, Self::PUZZLE_CELL, color);
+            draw_handle.draw_rectangle(
+                x,
+                y + 1 + Self::PUZZLE_CELL + Self::PUZZLE_CENTER_OFFSET,
+                1,
+                Self::PUZZLE_CELL,
+                color,
+            );
 
             // draw line across
             let left_x = inner.children.first().unwrap().borrow().draw_x.get();
             let right_x = inner.children.last().unwrap().borrow().draw_x.get();
+            let line_y = y + 1 + Self::PUZZLE_CELL + Self::PUZZLE_CENTER_OFFSET;
 
-            draw_handle.draw_rectangle(
-                left_x,
-                y + 1 + Self::PUZZLE_CELL * 2 + Self::PUZZLE_CELL * 3 / 2,
-                right_x - left_x + 1,
-                1,
-                raylib::color::Color::BLACK,
-            );
+            draw_handle.draw_rectangle(left_x, line_y, right_x - left_x + 1, 1, Color::BLACK);
 
             let mut child_on_path_id = -1;
 
@@ -288,19 +303,12 @@ impl RcRefDrawTreeNode {
                     .draw_x
                     .get();
 
-                let (start_x, end_x) = if x < other_end {
-                    (x, other_end)
-                } else {
-                    (other_end, x)
+                let (start_x, end_x) = match x < other_end {
+                    true => (x, other_end),
+                    false => (other_end, x),
                 };
 
-                draw_handle.draw_rectangle(
-                    start_x,
-                    y + 1 + Self::PUZZLE_CELL * 2 + Self::PUZZLE_CELL * 3 / 2,
-                    end_x - start_x + 1,
-                    1,
-                    raylib::color::Color::RED,
-                );
+                draw_handle.draw_rectangle(start_x, line_y, end_x - start_x + 1, 1, Color::RED);
             }
         }
     }
