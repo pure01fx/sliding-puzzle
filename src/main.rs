@@ -375,7 +375,9 @@ fn main() {
                         draw_handle: &mut draw_handle,
                         bound: MAIN_BOUND,
                         offset: (500 + offset_xy.0, 220 + offset_xy.1),
-                        sizer: PuzzleSizer { scale: animation_scale },
+                        sizer: PuzzleSizer {
+                            scale: animation_scale,
+                        },
                     };
                     solution.draw(&mut painter);
                 }
@@ -481,7 +483,10 @@ fn main() {
                 print_map_search_tree(&s);
                 solution_tree = Some((s.into(), count));
 
-                if let Some(((_, Some(goal_node)), _)) = &solution_tree {
+                if let Some(((init_node, Some(goal_node)), _)) = &solution_tree {
+                    init_node.build_coord(&PuzzleSizer {
+                        scale: animation_scale,
+                    });
                     offset_xy.0 = -goal_node.borrow().center_x;
                 }
             } else {

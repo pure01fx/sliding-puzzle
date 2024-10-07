@@ -91,7 +91,7 @@ impl RcRefDrawTreeNode {
         }
     }
 
-    fn build_coord(&self, sizer: &PuzzleSizer) {
+    pub fn build_coord(&self, sizer: &PuzzleSizer) {
         if self.borrow().coord_built_for.get() == Some(*sizer) {
             return;
         }
