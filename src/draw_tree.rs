@@ -37,6 +37,7 @@ pub struct DrawTreeNode {
     draw_x: Cell<i32>,
     visibility: Cell<Visibility>,
     on_path: Cell<bool>,
+    coord_built_for: Cell<Option<PuzzleSizer>>,
 }
 
 #[derive(Clone)]
@@ -62,6 +63,7 @@ impl DrawTreeNode {
             draw_x: Cell::new(0),
             visibility: Cell::new(Visibility::None),
             on_path: Cell::new(false),
+            coord_built_for: Cell::new(None),
         })))
     }
 }
@@ -90,8 +92,13 @@ impl RcRefDrawTreeNode {
     }
 
     fn build_coord(&self, sizer: &PuzzleSizer) {
+        if self.borrow().coord_built_for.get() == Some(*sizer) {
+            return;
+        }
+
         self.build_width_phase1(sizer);
         self.build_width_phase2(sizer);
+        self.borrow().coord_built_for.set(Some(*sizer));
     }
 
     fn build_width_phase1(&self, sizer: &PuzzleSizer) {
@@ -272,6 +279,7 @@ impl RcRefDrawTreeNode {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PuzzleSizer {
     pub scale: i32,
 }
