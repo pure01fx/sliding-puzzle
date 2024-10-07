@@ -230,14 +230,11 @@ impl<'a> AsMapSearchTree for AnimatedSearchTree<'a> {
             inner: &mut animating,
         };
         let (a, b) = RcRefDrawTreeNode::new_from_map_search_tree(&map_search_tree, current);
-
-        a.build_coord(&PuzzleSizer { scale: 3 });
-
         let mut painter = ElementPainter {
             draw_handle: &mut animating.draw_handle,
             bound: ANIM_BOUND,
             offset: (
-                500 - b.map(|x| x.borrow().center_x).unwrap_or(0),
+                1024 / 2,
                 ANIM_BOUND.top + 20,
             ),
             sizer: PuzzleSizer { scale: 3 },
