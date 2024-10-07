@@ -227,6 +227,9 @@ impl<'a> AsMapSearchTree for AnimatedSearchTree<'a> {
             inner: &mut animating,
         };
         let (a, b) = RcRefDrawTreeNode::new_from_map_search_tree(&map_search_tree, current);
+
+        a.build_coord(&PuzzleSizer { scale: 3 });
+
         let mut painter = ElementPainter {
             draw_handle: &mut animating.draw_handle,
             bound: ANIM_BOUND,
@@ -234,7 +237,7 @@ impl<'a> AsMapSearchTree for AnimatedSearchTree<'a> {
                 500 - b.map(|x| x.borrow().center_x).unwrap_or(0),
                 ANIM_BOUND.top + 20,
             ),
-            sizer: PuzzleSizer { scale: 2 },
+            sizer: PuzzleSizer { scale: 3 },
         };
         a.draw(&mut painter);
     }
@@ -348,7 +351,7 @@ fn main() {
     let mut strategy_edit = false;
     let mut animate_fps_x5: i32 = 0;
     let mut animation_edit = false;
-    let mut display_scale = 1;
+    let mut display_scale = 2;
 
     while !handle.window_should_close() {
         if handle.is_mouse_button_down(raylib::consts::MouseButton::MOUSE_BUTTON_LEFT) {
