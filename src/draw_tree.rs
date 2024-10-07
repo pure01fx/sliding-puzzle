@@ -286,7 +286,7 @@ pub struct PuzzleSizer {
 
 impl PuzzleSizer {
     fn puzzle_cell(&self) -> i32 {
-        2 * self.scale + 1
+        2 * self.scale - 1
     }
 
     fn puzzle_center_offset(&self) -> i32 {
