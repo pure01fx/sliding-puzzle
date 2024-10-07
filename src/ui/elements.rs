@@ -40,16 +40,25 @@ pub fn draw_puzzle(draw_handle: &mut RaylibDrawHandle, puzzle: &Puzzle, x: i32, 
 
 pub trait PuzzleCoord {
     fn get_top_left(&self) -> (i32, i32);
+    fn get_cell_size(&self) -> i32;
 }
 
 pub struct SmallPuzzleCenter {
     pub x: i32,
     pub y: i32,
+    pub cell_size: i32,
 }
 
 impl PuzzleCoord for SmallPuzzleCenter {
     fn get_top_left(&self) -> (i32, i32) {
-        (self.x - 4, self.y - 4)
+        (
+            self.x - self.cell_size * 3 / 2,
+            self.y - self.cell_size * 3 / 2,
+        )
+    }
+
+    fn get_cell_size(&self) -> i32 {
+        self.cell_size
     }
 }
 
@@ -60,15 +69,16 @@ pub fn draw_small_puzzle(
     with_border: bool,
 ) {
     let (x, y) = coord.get_top_left();
+    let cell_size = coord.get_cell_size();
     for i in 0..3 {
         for j in 0..3 {
             let value = puzzle.get_value(i, j);
             if value != 0 {
                 draw_handle.draw_rectangle(
-                    x + j as i32 * 3,
-                    y + i as i32 * 3,
-                    3,
-                    3,
+                    x + j as i32 * cell_size,
+                    y + i as i32 * cell_size,
+                    cell_size,
+                    cell_size,
                     map_color(&value.to_string()),
                 );
             }
@@ -76,6 +86,6 @@ pub fn draw_small_puzzle(
     }
 
     if with_border {
-        draw_handle.draw_rectangle_lines(x - 2, y - 2, 13, 13, Color::RED);
+        draw_handle.draw_rectangle_lines(x - 2, y - 2, 4 + cell_size * 3, 4 + cell_size * 3, Color::RED);
     }
 }
