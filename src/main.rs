@@ -335,14 +335,13 @@ fn main() {
 
     while !handle.window_should_close() {
         if handle.is_mouse_button_down(raylib::consts::MouseButton::MOUSE_BUTTON_LEFT)
-            && handle.get_mouse_y() > 200
         {
             if let Some(start) = start_pos {
                 offset_xy = (
                     handle.get_mouse_x() - start.0 + offset_xy_old.0,
                     handle.get_mouse_y() - start.1 + offset_xy_old.1,
                 );
-            } else {
+            } else if handle.get_mouse_y() > 200 {
                 start_pos = Some((handle.get_mouse_x(), handle.get_mouse_y()));
                 offset_xy_old = offset_xy;
             }
