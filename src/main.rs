@@ -11,7 +11,7 @@ use std::{
 };
 
 use draw_tree::{ElementPainter, IntRectBound, PuzzleSizer, RcRefDrawTreeNode};
-use logic::{solve_from_initial, AStarHeuristic, BfsHeuristic, Heuristic, Puzzle, SearchTree};
+use logic::{solve_from_initial, AStarHeuristic1, AStarHeuristic2, BfsHeuristic, Heuristic, Puzzle, SearchTree};
 use name::AUTHOR_NOTE;
 use raylib::{prelude::*, rgui::RaylibDrawGui, rstr};
 use ui::{
@@ -393,7 +393,7 @@ fn main() {
             }
             if draw_handle.gui_dropdown_box(
                 STRATEGY_LIST,
-                Some(rstr!("BFS;A*")),
+                Some(rstr!("BFS;A* (1);A* (2)")),
                 &mut selected_strategy,
                 strategy_edit,
             ) {
@@ -477,7 +477,8 @@ fn main() {
 
             if let Some(mut s) = {
                 match selected_strategy {
-                    1 => solve::<AStarHeuristic>(initial, goal, &mut handle, &thread, max_nodes),
+                    1 => solve::<AStarHeuristic1>(initial, goal, &mut handle, &thread, max_nodes),
+                    2 => solve::<AStarHeuristic2>(initial, goal, &mut handle, &thread, max_nodes),
                     _ => solve::<BfsHeuristic>(initial, goal, &mut handle, &thread, max_nodes),
                 }
             } {

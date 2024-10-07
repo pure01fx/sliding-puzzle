@@ -5,7 +5,7 @@ use std::collections::BinaryHeap;
 
 use rand::Rng;
 
-pub use a_star::AStarHeuristic;
+pub use a_star::{AStarHeuristic1, AStarHeuristic2};
 pub use bfs::BfsHeuristic;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
