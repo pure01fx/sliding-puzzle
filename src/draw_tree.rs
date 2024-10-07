@@ -1,6 +1,6 @@
 use std::{
     cell::{Cell, RefCell},
-    collections::HashMap,
+    collections::{hash_map, HashMap},
     ops::Deref,
     rc::Rc,
 };
@@ -248,8 +248,8 @@ impl RcRefDrawTreeNode {
         }
     }
 
-    pub fn new_from_map_search_tree<T: AsMapSearchTree>(
-        tree: &MapSearchTree<'_, T>,
+    pub fn new_from_map_search_tree<'a, T: Iterator<Item=(&'a Puzzle, &'a (Puzzle, i32))>>(
+        tree: &'a impl IterableSearchTree<'a, T>,
         path_end: &Puzzle,
     ) -> (RcRefDrawTreeNode, Option<RcRefDrawTreeNode>) {
         let root_node = DrawTreeNode::new_rc_ref(*tree.initial());
@@ -257,7 +257,7 @@ impl RcRefDrawTreeNode {
 
         temp_nodes.insert(tree.initial(), root_node.clone());
 
-        for (puzzle, (parent, _)) in tree.map() {
+        for (puzzle, (parent, _)) in tree.iter() {
             if puzzle == parent {
                 continue;
             }
@@ -276,6 +276,26 @@ impl RcRefDrawTreeNode {
         let (_, goal_node) = root_node.build_depth(0, path_end);
 
         (root_node, goal_node)
+    }
+}
+
+pub trait IterableSearchTree<'a, T: Iterator<Item=(&'a Puzzle, &'a (Puzzle, i32))>> {
+    fn initial(&self) -> &Puzzle;
+    fn goal(&self) -> &Puzzle;
+    fn iter(&'a self) -> T;
+}
+
+impl<'a, T: AsMapSearchTree> IterableSearchTree<'a, hash_map::Iter<'a, Puzzle, (Puzzle, i32)>> for MapSearchTree<'_, T> {
+    fn initial(&self) -> &Puzzle {
+        Deref::deref(self).initial()
+    }
+
+    fn goal(&self) -> &Puzzle {
+        Deref::deref(self).goal()
+    }
+
+    fn iter(&'a self) -> hash_map::Iter<'a, Puzzle, (Puzzle, i32)> {
+        self.map().iter()
     }
 }
 

@@ -1,7 +1,7 @@
 mod a_star;
 mod bfs;
 
-use std::collections::BinaryHeap;
+use std::collections::{BinaryHeap, HashMap};
 
 use rand::Rng;
 
@@ -122,7 +122,7 @@ pub trait SearchTree {
     fn goal_reached(&self) -> bool;
     fn get(&self, key: &Puzzle) -> Option<(Puzzle, i32)>;
     fn set(&mut self, key: Puzzle, value: (Puzzle, i32));
-    fn step_callback(&mut self, _current: &Puzzle, _next: (&Puzzle, bool)) {}
+    fn step_callback(&mut self, _current: &Puzzle, _next: (&Puzzle, bool), _open_set: &OpenSet) {}
 }
 
 #[derive(Clone, Debug)]
@@ -152,12 +152,43 @@ impl Ord for BinaryHeapNode {
     }
 }
 
+pub struct OpenSet {
+    set: BinaryHeap<BinaryHeapNode>,
+    map: HashMap<Puzzle, (Puzzle, i32)>,
+}
+
+impl OpenSet {
+    fn new() -> Self {
+        OpenSet {
+            set: BinaryHeap::new(),
+            map: HashMap::new(),
+        }
+    }
+
+    fn push(&mut self, node: BinaryHeapNode) {
+        self.map.insert(node.puzzle, (node.puzzle, node.g));
+        self.set.push(node);
+    }
+
+    fn pop(&mut self) -> Option<BinaryHeapNode> {
+        let node = self.set.pop();
+        if let Some(node) = &node {
+            self.map.remove(&node.puzzle);
+        }
+        node
+    }
+
+    pub fn iter(&self) -> std::collections::hash_map::Iter<Puzzle, (Puzzle, i32)> {
+        self.map.iter()
+    }
+}
+
 pub fn solve_from_initial<S: SearchTree, H: Heuristic>(
     initial: Puzzle,
     goal: Puzzle,
     closed_set: &mut S,
 ) {
-    let mut open_set = BinaryHeap::new();
+    let mut open_set = OpenSet::new();
     let mut h_estimator = H::new();
 
     open_set.push(BinaryHeapNode {
@@ -189,7 +220,7 @@ pub fn solve_from_initial<S: SearchTree, H: Heuristic>(
                     open_set.push(BinaryHeapNode { puzzle: next, g, h });
                 }
 
-                closed_set.step_callback(&current.puzzle, (&next, update));
+                closed_set.step_callback(&current.puzzle, (&next, update), &open_set);
             }
         }
     }

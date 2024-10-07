@@ -4,16 +4,12 @@ pub mod name;
 mod ui;
 
 use std::{
-    cell::Cell,
-    collections::HashMap,
-    marker::PhantomData,
-    ops::{Deref, DerefMut},
+    cell::Cell, collections::{hash_map, HashMap}, iter::Chain, marker::PhantomData, ops::{Deref, DerefMut}
 };
 
-use draw_tree::{ElementPainter, IntRectBound, PuzzleSizer, RcRefDrawTreeNode};
+use draw_tree::{ElementPainter, IntRectBound, IterableSearchTree, PuzzleSizer, RcRefDrawTreeNode};
 use logic::{
-    solve_from_initial, AStarHeuristic1, AStarHeuristic2, BfsHeuristic, Heuristic, Puzzle,
-    SearchTree,
+    solve_from_initial, AStarHeuristic1, AStarHeuristic2, BfsHeuristic, Heuristic, OpenSet, Puzzle, SearchTree
 };
 use name::AUTHOR_NOTE;
 use raylib::{prelude::*, rgui::RaylibDrawGui, rstr};
@@ -28,7 +24,7 @@ pub trait AsMapSearchTree {
     fn initial(&self) -> &Puzzle;
     fn map(&self) -> &HashMap<Puzzle, (Puzzle, i32)>;
     fn map_mut(&mut self) -> &mut HashMap<Puzzle, (Puzzle, i32)>;
-    fn step_callback(&mut self, _: &Puzzle, _: (&Puzzle, bool));
+    fn step_callback(&mut self, _: &Puzzle, _: (&Puzzle, bool), _: &OpenSet);
 
     fn as_map_search_tree(&mut self) -> MapSearchTree<'_, Self>
     where
@@ -116,7 +112,7 @@ impl AsMapSearchTree for NativeSearchTree {
     fn map_mut(&mut self) -> &mut HashMap<Puzzle, (Puzzle, i32)> {
         &mut self.map
     }
-    fn step_callback(&mut self, _: &Puzzle, _: (&Puzzle, bool)) {}
+    fn step_callback(&mut self, _: &Puzzle, _: (&Puzzle, bool), _: &OpenSet) {}
 }
 
 struct AnimatedSearchTree<'handle> {
@@ -179,7 +175,26 @@ impl AsMapSearchTree for AnimatingSearchTree<'_, '_, '_> {
     fn map_mut(&mut self) -> &mut HashMap<Puzzle, (Puzzle, i32)> {
         panic!("AnimatingSearchTree is read-only");
     }
-    fn step_callback(&mut self, _: &Puzzle, _: (&Puzzle, bool)) {}
+    fn step_callback(&mut self, _: &Puzzle, _: (&Puzzle, bool), _: &OpenSet) {}
+}
+
+struct MixedIterativeSearchTree<'a, 'b, 'c, 'd> {
+    map_search_tree: &'d AnimatingSearchTree<'a, 'b, 'c>,
+    open_set: &'d OpenSet,
+}
+
+impl<'a, 'b: 'a, 'c: 'a, 'd: 'a, 'e: 'a> IterableSearchTree<'a, Chain<hash_map::Iter<'a, Puzzle, (Puzzle, i32)>, hash_map::Iter<'a, Puzzle, (Puzzle, i32)>>> for MixedIterativeSearchTree<'b, 'c, 'd, 'e> {
+    fn initial(&self) -> &Puzzle {
+        self.map_search_tree.initial()
+    }
+
+    fn goal(&self) -> &Puzzle {
+        self.map_search_tree.goal()
+    }
+    
+    fn iter(&'a self) -> Chain<hash_map::Iter<'a, Puzzle, (Puzzle, i32)>, hash_map::Iter<'a, Puzzle, (Puzzle, i32)>> {
+        self.map_search_tree.map().iter().chain(self.open_set.iter())
+    }
 }
 
 impl<'a> AsMapSearchTree for AnimatedSearchTree<'a> {
@@ -195,7 +210,7 @@ impl<'a> AsMapSearchTree for AnimatedSearchTree<'a> {
     fn map_mut(&mut self) -> &mut HashMap<Puzzle, (Puzzle, i32)> {
         &mut self.map
     }
-    fn step_callback(&mut self, current: &Puzzle, _: (&Puzzle, bool)) {
+    fn step_callback(&mut self, current: &Puzzle, _: (&Puzzle, bool), open_set: &OpenSet) {
         if self.map.len() > self.max_nodes.get() {
             return;
         }
@@ -226,10 +241,11 @@ impl<'a> AsMapSearchTree for AnimatedSearchTree<'a> {
             animating.max_nodes.set(0);
         }
 
-        let map_search_tree = MapSearchTree {
-            inner: &mut animating,
+        let mixed_iterative = MixedIterativeSearchTree {
+            map_search_tree: &animating,
+            open_set,
         };
-        let (a, b) = RcRefDrawTreeNode::new_from_map_search_tree(&map_search_tree, current);
+        let (a, _) = RcRefDrawTreeNode::new_from_map_search_tree(&mixed_iterative, current);
         let mut painter = ElementPainter {
             draw_handle: &mut animating.draw_handle,
             bound: ANIM_BOUND,
@@ -256,8 +272,8 @@ impl<T: AsMapSearchTree> SearchTree for MapSearchTree<'_, T> {
         self.map_mut().insert(key, value);
     }
 
-    fn step_callback(&mut self, current: &Puzzle, next: (&Puzzle, bool)) {
-        self.inner.step_callback(current, next);
+    fn step_callback(&mut self, current: &Puzzle, next: (&Puzzle, bool), open_set: &OpenSet) {
+        self.inner.step_callback(current, next, open_set);
     }
 }
 
