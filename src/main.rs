@@ -348,7 +348,7 @@ fn main() {
     let mut strategy_edit = false;
     let mut animate_fps_x5: i32 = 0;
     let mut animation_edit = false;
-    let mut animation_scale = 1;
+    let mut display_scale = 1;
 
     while !handle.window_should_close() {
         if handle.is_mouse_button_down(raylib::consts::MouseButton::MOUSE_BUTTON_LEFT) {
@@ -376,7 +376,7 @@ fn main() {
                         bound: MAIN_BOUND,
                         offset: (500 + offset_xy.0, 220 + offset_xy.1),
                         sizer: PuzzleSizer {
-                            scale: animation_scale,
+                            scale: display_scale,
                         },
                     };
                     solution.draw(&mut painter);
@@ -463,7 +463,7 @@ fn main() {
                 draw_handle,
                 &mut initial,
                 &mut show_result,
-                &mut animation_scale,
+                &mut display_scale,
             )
         };
 
@@ -485,7 +485,7 @@ fn main() {
 
                 if let Some(((init_node, Some(goal_node)), _)) = &solution_tree {
                     init_node.build_coord(&PuzzleSizer {
-                        scale: animation_scale,
+                        scale: display_scale,
                     });
                     offset_xy.0 = -goal_node.borrow().center_x;
                 }
@@ -505,7 +505,7 @@ fn button_draw(
     mut draw_handle: RaylibDrawHandle<'_>,
     initial: &mut Puzzle,
     show_result: &mut bool,
-    animation_scale: &mut i32,
+    display_scale: &mut i32,
 ) -> bool {
     if draw_handle.gui_button(RANDOM_INIT_BUTTON, Some(rstr!("Random init"))) {
         *initial = Puzzle::from_random();
@@ -523,11 +523,11 @@ fn button_draw(
     }
 
     if draw_handle.gui_button(PLUS_BUTTON, Some(rstr!("+"))) {
-        *animation_scale += 1;
+        *display_scale += 1;
     }
 
-    if *animation_scale > 1 && draw_handle.gui_button(MINUS_BUTTON, Some(rstr!("-"))) {
-        *animation_scale -= 1;
+    if *display_scale > 1 && draw_handle.gui_button(MINUS_BUTTON, Some(rstr!("-"))) {
+        *display_scale -= 1;
     }
 
     setting_goal.is_none()
