@@ -395,7 +395,7 @@ fn main() {
                     draw_handle.draw_text(
                         &*format!("Solution found, {} nodes", count),
                         500,
-                        50,
+                        52,
                         20,
                         raylib::color::Color::GREEN,
                     );
@@ -403,14 +403,14 @@ fn main() {
                     draw_handle.draw_text(
                         "No solution found",
                         500,
-                        50,
+                        52,
                         20,
                         raylib::color::Color::RED,
                     );
                 }
             }
 
-            draw_handle.draw_text(AUTHOR_NOTE, 500, 110, 20, raylib::color::Color::DARKCYAN);
+            draw_handle.draw_text(AUTHOR_NOTE, 500, 82, 20, raylib::color::Color::DARKCYAN);
 
             if let Some(set_goal) = &mut setting_goal {
                 set_goal.read_event(&draw_handle);
