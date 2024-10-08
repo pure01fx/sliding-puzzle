@@ -128,6 +128,7 @@ pub trait SearchTree {
 #[derive(Clone, Debug)]
 struct BinaryHeapNode {
     puzzle: Puzzle,
+    parent: Puzzle,
     g: i32,
     h: i32,
 }
@@ -166,16 +167,30 @@ impl OpenSet {
     }
 
     fn push(&mut self, node: BinaryHeapNode) {
-        self.map.insert(node.puzzle, (node.puzzle, node.g));
-        self.set.push(node);
+        // self.map.insert(node.puzzle, (from, node.h));
+        let old = self.map.get(&node.puzzle);
+        if old.is_none() || old.unwrap().1 > node.g {
+            self.map.insert(node.puzzle, (node.parent, node.g));
+            self.set.push(node);
+        }
     }
 
     fn pop(&mut self) -> Option<BinaryHeapNode> {
-        let node = self.set.pop();
-        if let Some(node) = &node {
-            self.map.remove(&node.puzzle);
+        loop {
+            let heap_node = self.set.pop();
+            if let Some(node) = &heap_node {
+                if let Some(real) = self.map.remove(&node.puzzle) {
+                    break Some(BinaryHeapNode {
+                        puzzle: node.puzzle,
+                        parent: real.0,
+                        g: real.1,
+                        h: node.h, // This value is not used outside of the binary heap
+                    });
+                }
+            } else {
+                break None;
+            }
         }
-        node
     }
 
     pub fn iter(&self) -> std::collections::hash_map::Iter<Puzzle, (Puzzle, i32)> {
@@ -193,12 +208,14 @@ pub fn solve_from_initial<S: SearchTree, H: Heuristic>(
 
     open_set.push(BinaryHeapNode {
         puzzle: initial,
+        parent: initial,
         g: 0,
         h: 0,
     });
-    closed_set.set(initial, (initial, 0));
 
     while let Some(current) = open_set.pop() {
+        closed_set.set(current.puzzle, (current.parent, current.g));
+
         if current.puzzle == goal {
             break;
         }
@@ -207,20 +224,21 @@ pub fn solve_from_initial<S: SearchTree, H: Heuristic>(
 
         for direction in Direction::all() {
             if let Some(next) = current.puzzle.move_zero(direction) {
+                if closed_set.get(&next).is_some() {
+                    continue;
+                }
+                
                 let g = current_g + 1;
                 let h = h_estimator.estimate_h(&next, &goal);
 
-                let update = match closed_set.get(&next) {
-                    Some((_, prev_g)) => g < prev_g,
-                    _ => true,
-                };
-
-                if update {
-                    closed_set.set(next, (current.puzzle, g));
-                    open_set.push(BinaryHeapNode { puzzle: next, g, h });
-                }
-
-                closed_set.step_callback(&current.puzzle, (&next, update), &open_set);
+                open_set.push(BinaryHeapNode {
+                    puzzle: next,
+                    parent: current.puzzle,
+                    g,
+                    h,
+                });
+                closed_set.step_callback(&current.puzzle, (&next, false), &open_set);
+                // TODO: remove this false
             }
         }
     }

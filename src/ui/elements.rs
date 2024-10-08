@@ -66,7 +66,7 @@ pub fn draw_small_puzzle(
     draw_handle: &mut RaylibDrawHandle,
     puzzle: &Puzzle,
     coord: impl PuzzleCoord,
-    with_border: bool,
+    with_border: Option<Color>,
 ) {
     let (x, y) = coord.get_top_left();
     let cell_size = coord.get_cell_size();
@@ -85,8 +85,8 @@ pub fn draw_small_puzzle(
         }
     }
 
-    if with_border {
-        draw_handle.draw_rectangle_lines(x - 2, y - 2, 4 + cell_size * 3, 4 + cell_size * 3, Color::RED);
+    if let Some(color) = with_border {
+        draw_handle.draw_rectangle_lines(x - 2, y - 2, 4 + cell_size * 3, 4 + cell_size * 3, color);
     } else {
         draw_handle.draw_rectangle_lines(x - 1, y - 1, 2 + cell_size * 3, 2 + cell_size * 3, Color::BLACK);
     }

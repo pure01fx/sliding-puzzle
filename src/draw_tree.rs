@@ -1,6 +1,7 @@
 use std::{
     cell::{Cell, RefCell},
     collections::{hash_map, HashMap},
+    iter::Map,
     ops::Deref,
     rc::Rc,
 };
@@ -38,6 +39,7 @@ pub struct DrawTreeNode {
     visibility: Cell<Visibility>,
     on_path: Cell<bool>,
     coord_built_for: Cell<Option<PuzzleSizer>>,
+    is_open_set: bool,
 }
 
 #[derive(Clone)]
@@ -52,7 +54,7 @@ impl Deref for RcRefDrawTreeNode {
 }
 
 impl DrawTreeNode {
-    fn new_rc_ref(puzzle: Puzzle) -> RcRefDrawTreeNode {
+    fn new_rc_ref(puzzle: Puzzle, is_open_set: bool) -> RcRefDrawTreeNode {
         RcRefDrawTreeNode(Rc::new(RefCell::new(DrawTreeNode {
             puzzle,
             depth: 0,
@@ -64,6 +66,7 @@ impl DrawTreeNode {
             visibility: Cell::new(Visibility::None),
             on_path: Cell::new(false),
             coord_built_for: Cell::new(None),
+            is_open_set,
         })))
     }
 }
@@ -188,7 +191,7 @@ impl RcRefDrawTreeNode {
         if let Some(y) = painter.get_draw_y(inner.depth) {
             let x = painter.get_draw_x(center_x);
 
-            painter.draw_small_puzzle(&inner.puzzle, x, y, inner.on_path.get());
+            painter.draw_small_puzzle(&inner.puzzle, x, y, inner.on_path.get(), inner.is_open_set);
 
             inner.draw_x.set(x);
             inner.visibility.set(match fully_visible {
@@ -248,26 +251,29 @@ impl RcRefDrawTreeNode {
         }
     }
 
-    pub fn new_from_map_search_tree<'a, T: Iterator<Item=(&'a Puzzle, &'a (Puzzle, i32))>>(
+    pub fn new_from_map_search_tree<
+        'a,
+        T: Iterator<Item = (&'a Puzzle, &'a (Puzzle, i32), bool)>,
+    >(
         tree: &'a impl IterableSearchTree<'a, T>,
         path_end: &Puzzle,
     ) -> (RcRefDrawTreeNode, Option<RcRefDrawTreeNode>) {
-        let root_node = DrawTreeNode::new_rc_ref(*tree.initial());
+        let root_node = DrawTreeNode::new_rc_ref(*tree.initial(), false);
         let mut temp_nodes = HashMap::new();
 
         temp_nodes.insert(tree.initial(), root_node.clone());
 
-        for (puzzle, (parent, _)) in tree.iter() {
+        for (puzzle, (parent, _), is_open_set) in tree.iter() {
             if puzzle == parent {
                 continue;
             }
             let puzzle_node = temp_nodes
                 .entry(puzzle)
-                .or_insert_with(|| DrawTreeNode::new_rc_ref(*puzzle))
+                .or_insert_with(|| DrawTreeNode::new_rc_ref(*puzzle, is_open_set))
                 .clone();
             temp_nodes
                 .entry(parent)
-                .or_insert_with(|| DrawTreeNode::new_rc_ref(*parent))
+                .or_insert_with(|| DrawTreeNode::new_rc_ref(*parent, is_open_set))
                 .borrow_mut()
                 .children
                 .push(puzzle_node.clone());
@@ -279,13 +285,21 @@ impl RcRefDrawTreeNode {
     }
 }
 
-pub trait IterableSearchTree<'a, T: Iterator<Item=(&'a Puzzle, &'a (Puzzle, i32))>> {
+pub trait IterableSearchTree<'a, T: Iterator<Item = (&'a Puzzle, &'a (Puzzle, i32), bool)>> {
     fn initial(&self) -> &Puzzle;
     fn goal(&self) -> &Puzzle;
     fn iter(&'a self) -> T;
 }
 
-impl<'a, T: AsMapSearchTree> IterableSearchTree<'a, hash_map::Iter<'a, Puzzle, (Puzzle, i32)>> for MapSearchTree<'_, T> {
+impl<'a, T: AsMapSearchTree>
+    IterableSearchTree<
+        'a,
+        Map<
+            hash_map::Iter<'a, Puzzle, (Puzzle, i32)>,
+            fn((&'a Puzzle, &'a (Puzzle, i32))) -> (&'a Puzzle, &'a (Puzzle, i32), bool),
+        >,
+    > for MapSearchTree<'_, T>
+{
     fn initial(&self) -> &Puzzle {
         Deref::deref(self).initial()
     }
@@ -294,8 +308,13 @@ impl<'a, T: AsMapSearchTree> IterableSearchTree<'a, hash_map::Iter<'a, Puzzle, (
         Deref::deref(self).goal()
     }
 
-    fn iter(&'a self) -> hash_map::Iter<'a, Puzzle, (Puzzle, i32)> {
-        self.map().iter()
+    fn iter(
+        &'a self,
+    ) -> Map<
+        hash_map::Iter<'a, Puzzle, (Puzzle, i32)>,
+        fn((&'a Puzzle, &'a (Puzzle, i32))) -> (&'a Puzzle, &'a (Puzzle, i32), bool),
+    > {
+        self.map().iter().map(|(a, b)| (a, b, false))
     }
 }
 
@@ -350,7 +369,14 @@ impl ElementPainter<'_, '_> {
         }
     }
 
-    fn draw_small_puzzle(&mut self, puzzle: &Puzzle, x: i32, y: i32, on_path: bool) {
+    fn draw_small_puzzle(
+        &mut self,
+        puzzle: &Puzzle,
+        x: i32,
+        y: i32,
+        on_path: bool,
+        open_set: bool,
+    ) {
         draw_small_puzzle(
             self.draw_handle,
             puzzle,
@@ -359,7 +385,13 @@ impl ElementPainter<'_, '_> {
                 y,
                 cell_size: self.puzzle_cell(),
             },
-            on_path,
+            match on_path {
+                true => Some(Color::RED),
+                false => match open_set {
+                    true => Some(Color::AQUA),
+                    false => None,
+                },
+            },
         );
     }
 

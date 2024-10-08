@@ -4,12 +4,17 @@ pub mod name;
 mod ui;
 
 use std::{
-    cell::Cell, collections::{hash_map, HashMap}, iter::Chain, marker::PhantomData, ops::{Deref, DerefMut}
+    cell::Cell,
+    collections::{hash_map, HashMap},
+    iter::{Chain, Map},
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
 };
 
 use draw_tree::{ElementPainter, IntRectBound, IterableSearchTree, PuzzleSizer, RcRefDrawTreeNode};
 use logic::{
-    solve_from_initial, AStarHeuristic1, AStarHeuristic2, BfsHeuristic, Heuristic, OpenSet, Puzzle, SearchTree
+    solve_from_initial, AStarHeuristic1, AStarHeuristic2, BfsHeuristic, Heuristic, OpenSet, Puzzle,
+    SearchTree,
 };
 use name::AUTHOR_NOTE;
 use raylib::{prelude::*, rgui::RaylibDrawGui, rstr};
@@ -183,7 +188,31 @@ struct MixedIterativeSearchTree<'a, 'b, 'c, 'd> {
     open_set: &'d OpenSet,
 }
 
-impl<'a, 'b: 'a, 'c: 'a, 'd: 'a, 'e: 'a> IterableSearchTree<'a, Chain<hash_map::Iter<'a, Puzzle, (Puzzle, i32)>, hash_map::Iter<'a, Puzzle, (Puzzle, i32)>>> for MixedIterativeSearchTree<'b, 'c, 'd, 'e> {
+type ChainMapIter<'a, 'b> = Chain<
+    Map<
+        hash_map::Iter<'a, Puzzle, (Puzzle, i32)>,
+        fn((&'a Puzzle, &'a (Puzzle, i32))) -> (&'a Puzzle, &'a (Puzzle, i32), bool),
+    >,
+    Map<
+        hash_map::Iter<'b, Puzzle, (Puzzle, i32)>,
+        fn((&'b Puzzle, &'b (Puzzle, i32))) -> (&'b Puzzle, &'b (Puzzle, i32), bool),
+    >,
+>;
+
+fn always_false<'a>(
+    (a, b): (&'a Puzzle, &'a (Puzzle, i32)),
+) -> (&'a Puzzle, &'a (Puzzle, i32), bool) {
+    (a, b, false)
+}
+fn always_true<'a>(
+    (a, b): (&'a Puzzle, &'a (Puzzle, i32)),
+) -> (&'a Puzzle, &'a (Puzzle, i32), bool) {
+    (a, b, true)
+}
+
+impl<'a, 'b: 'a, 'c: 'a, 'd: 'a, 'e: 'a> IterableSearchTree<'a, ChainMapIter<'a, 'a>>
+    for MixedIterativeSearchTree<'b, 'c, 'd, 'e>
+{
     fn initial(&self) -> &Puzzle {
         self.map_search_tree.initial()
     }
@@ -191,9 +220,10 @@ impl<'a, 'b: 'a, 'c: 'a, 'd: 'a, 'e: 'a> IterableSearchTree<'a, Chain<hash_map::
     fn goal(&self) -> &Puzzle {
         self.map_search_tree.goal()
     }
-    
-    fn iter(&'a self) -> Chain<hash_map::Iter<'a, Puzzle, (Puzzle, i32)>, hash_map::Iter<'a, Puzzle, (Puzzle, i32)>> {
-        self.map_search_tree.map().iter().chain(self.open_set.iter())
+
+    fn iter(&'a self) -> ChainMapIter<'a, 'a> {
+        let x = self.map_search_tree.map().iter().map(always_false as _);
+        x.chain(self.open_set.iter().map(always_true as _))
     }
 }
 
@@ -249,10 +279,7 @@ impl<'a> AsMapSearchTree for AnimatedSearchTree<'a> {
         let mut painter = ElementPainter {
             draw_handle: &mut animating.draw_handle,
             bound: ANIM_BOUND,
-            offset: (
-                1024 / 2,
-                ANIM_BOUND.top + 20,
-            ),
+            offset: (1024 / 2, ANIM_BOUND.top + 20),
             sizer: PuzzleSizer { scale: 3 },
         };
         a.draw(&mut painter);
