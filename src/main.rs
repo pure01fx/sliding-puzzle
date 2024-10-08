@@ -1,3 +1,5 @@
+#![windows_subsystem = "windows"]
+
 mod draw_tree;
 mod logic;
 pub mod name;
@@ -375,7 +377,7 @@ const ANIM_BOUND: IntRectBound = IntRectBound {
 };
 
 fn main() {
-    let (mut handle, thread) = raylib::init().size(1024, 768).build();
+    let (mut handle, thread) = raylib::init().title("sliding-puzzle").size(1024, 768).build();
     let mut goal = Puzzle::new([[1, 2, 3], [8, 0, 4], [7, 6, 5]]);
     let mut initial = Puzzle::new([[1, 3, 4], [8, 2, 5], [0, 7, 6]]);
     let mut setting_goal: Option<SetPuzzle> = None;
